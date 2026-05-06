@@ -22,6 +22,8 @@ ARITY = {
     "idiv1": 1,
     "shl": 2,
     "shr": 1,
+    "sub": 2,
+    "neg": 1,
 }
 
 I64_MIN = -(2**63)
@@ -77,6 +79,12 @@ def reference(op: str, xs: list[int]) -> int:
     if op == "shr":
         # arith_spec_shr: y = x0 >> 0 = x0.
         return xs[0]
+    if op == "sub":
+        # arith_spec_sub: y = x0 - x1, with isize wrapping.
+        return _to_signed(xs[0] - xs[1], ISIZE_BITS)
+    if op == "neg":
+        # arith_spec_neg: y = -x0, with isize wrapping (ISIZE_MIN negates to ISIZE_MIN).
+        return _to_signed(-xs[0], ISIZE_BITS)
     raise ValueError(f"unknown op: {op}")
 
 
@@ -96,6 +104,8 @@ def main() -> int:
         "idiv1": (-(2**62), 2**62 - 1),
         "shl": (-(2**62), 2**62 - 1),
         "shr": (-(2**62), 2**62 - 1),
+        "sub": (-(2**62), 2**62 - 1),
+        "neg": (-(2**62), 2**62 - 1),
     }
     lo, hi = lo_hi[args.op]
     it = range(args.count) if args.count is not None else itertools.count()

@@ -41,8 +41,21 @@ def shrZeroRight : RewriteRule ArithOp where
   lhs := .node (.shr 0 0) [.patVar 0, .node (.const 0) []]
   rhs := .patVar 0
 
+/-- Self-subtraction: `x - x → 0`. -/
+def subSelfZero : RewriteRule ArithOp where
+  name := "sub_self_zero"
+  lhs := .node (.sub 0 0) [.patVar 0, .patVar 0]
+  rhs := .node (.const 0) []
+
+/-- Double negation elimination: `-(-x) → x`. -/
+def negNeg : RewriteRule ArithOp where
+  name := "neg_neg"
+  lhs := .node (.neg 0) [.node (.neg 0) [.patVar 0]]
+  rhs := .patVar 0
+
 /-- Registry of active rewrite rules. Adding a rule is a one-line change here. -/
 def allRules : List (RewriteRule ArithOp) :=
-  [addZeroRight, mulOneRight, mulZeroRight, idivOneRight, shlZeroRight, shrZeroRight]
+  [addZeroRight, mulOneRight, mulZeroRight, idivOneRight, shlZeroRight, shrZeroRight,
+   subSelfZero, negNeg]
 
 end TRZK

@@ -35,3 +35,13 @@ open TRZK
 #guard optimize (.shr (.const 0) (.var 0)) == some (.shr (.const 0) (.var 0))
 #guard optimize (.shr (.var 0) (.var 1)) == some (.shr (.var 0) (.var 1))
 #guard optimize (.add (.shr (.var 0) (.const 0)) (.const 0)) == some (.var 0)
+
+#guard optimize (.sub (.var 0) (.var 0)) == some (.const 0)
+#guard optimize (.sub (.var 5) (.var 5)) == some (.const 0)
+#guard optimize (.sub (.var 0) (.var 1)) == some (.sub (.var 0) (.var 1))
+#guard optimize (.add (.sub (.var 0) (.var 0)) (.const 0)) == some (.const 0)
+
+#guard optimize (.neg (.neg (.var 0))) == some (.var 0)
+#guard optimize (.neg (.neg (.var 5))) == some (.var 5)
+#guard optimize (.neg (.neg (.neg (.neg (.var 0))))) == some (.var 0)
+#guard optimize (.neg (.var 0)) == some (.neg (.var 0))

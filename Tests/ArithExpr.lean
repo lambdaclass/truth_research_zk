@@ -26,3 +26,12 @@ open TRZK
 #guard ArithExpr.size (.shr (.add (.var 0) (.var 1)) (.const 2)) == 5
 #guard (ArithExpr.shr (.var 0) (.const 0)) != (.shr (.const 0) (.var 0))
 #guard (ArithExpr.shr (.var 0) (.const 0)) != (.add (.var 0) (.const 0))
+
+#guard ArithExpr.size (.sub (.var 0) (.var 1)) == 3
+#guard ArithExpr.size (.sub (.add (.var 0) (.var 1)) (.const 2)) == 5
+#guard ArithExpr.size (.neg (.var 0)) == 2
+#guard ArithExpr.size (.neg (.neg (.var 0))) == 3
+#guard ArithExpr.size (.neg (.add (.var 0) (.var 1))) == 4
+#guard (ArithExpr.sub (.var 0) (.var 1)) != (.sub (.var 1) (.var 0))
+#guard (ArithExpr.sub (.var 0) (.var 1)) != (.add (.var 0) (.var 1))
+#guard (ArithExpr.neg (.var 0)) != (.var 0)

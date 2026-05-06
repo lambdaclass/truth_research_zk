@@ -6,6 +6,8 @@ private def usedVarsAux (arity : Nat) : ArithExpr → Array Bool → Array Bool
   | .const _,  used => used
   | .var i,    used => if i < arity then used.set! i true else used
   | .add a b,  used => usedVarsAux arity b (usedVarsAux arity a used)
+  | .sub a b,  used => usedVarsAux arity b (usedVarsAux arity a used)
+  | .neg a,    used => usedVarsAux arity a used
   | .mul a b,  used => usedVarsAux arity b (usedVarsAux arity a used)
   | .idiv a b, used => usedVarsAux arity b (usedVarsAux arity a used)
   | .shl a b,  used => usedVarsAux arity b (usedVarsAux arity a used)
@@ -24,8 +26,10 @@ def emitExpr : ArithExpr → String
   | .const n =>
     if n < 0 then s!"(-{-n}isize)" else s!"{n}isize"
   | .var i    => s!"x{i}"
-  | .add a b  => s!"({emitExpr a} + {emitExpr b})"
-  | .mul a b  => s!"({emitExpr a} * {emitExpr b})"
+  | .add a b  => s!"{emitExpr a}.wrapping_add({emitExpr b})"
+  | .sub a b  => s!"{emitExpr a}.wrapping_sub({emitExpr b})"
+  | .neg a    => s!"{emitExpr a}.wrapping_neg()"
+  | .mul a b  => s!"{emitExpr a}.wrapping_mul({emitExpr b})"
   | .idiv a b => s!"({emitExpr a} / {emitExpr b})"
   | .shl a b  => s!"{emitExpr a}.unbounded_shl({emitExpr b} as u32)"
   | .shr a b  => s!"(({emitExpr a} as usize).unbounded_shr({emitExpr b} as u32) as isize)"
