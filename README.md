@@ -9,16 +9,19 @@ on a working foundation.
 
 ## Current abilities
 
-- Expression language: `ArithExpr = Const Int | Var Nat | Add ArithExpr ArithExpr`
-- One rewrite rule: `e + 0 → e` (right-identity)
-- Rust emitter targeting `isize` arithmetic
+- Expression language: `ArithExpr = Const BabyBear | Var Nat | Add | Sub | Neg | Mul`
+- Value type: BabyBear field (`p = 2³¹ − 2²⁷ + 1`) in canonical residue form
+- Rewrite rules: `e + 0 → e`, `x + (−x) → 0`, `e * 1 → e`, `e * 0 → 0`,
+  `x − x → 0`, `−(−x) → x`
+- Rust emitter targeting `u32` BabyBear arithmetic with `u64` intermediates
 - CLI `trzk` that turns a `.lean` spec file into a Rust function
 - Integration test with crafted and fuzz vectors
 
 ## Not yet supported
 
-Multiplication, left-identity of `+`, commutativity, constant folding, finite
-fields, ZK primitives. All deferred to future iterations.
+Multiplicative inverse, multiple representations (Montgomery), multiple fields
+(Goldilocks), exponentiation, NTT, ZK primitives. All deferred to future
+iterations.
 
 ## Dependencies
 
@@ -39,7 +42,8 @@ def spec : ArithExpr := .add (.var 0) (.const 0)
 EOF
 ./.lake/build/bin/trzk /tmp/spec.lean --output /tmp/out.rs
 cat /tmp/out.rs
-# → pub fn arith_spec(x0: isize) -> isize { x0 }
+# → … helper preamble …
+#   pub fn arith_spec(x0: u32) -> u32 { x0 }
 
 # Run the integration test
 ./integration_tests/run.sh --op add0
@@ -65,6 +69,7 @@ See [`docs/pipeline.md`](docs/pipeline.md) for details.
 |------|---------|
 | `TRZK/ArithExpr.lean` | AST users write specs in |
 | `TRZK/ArithOp.lean` | e-graph node + optisat typeclass instances |
+| `TRZK/Field/BabyBear.lean` | BabyBear field type, instances, primality |
 | `TRZK/Rule.lean` | rewrite rule registry |
 | `TRZK/Pipeline.lean` | embed + optimize |
 | `TRZK/Emit.lean` | Rust emitter |

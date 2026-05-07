@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """verify_arith.py — Verify trzk-generated ArithExpr binaries.
 
-Reads test vectors from stdin, line by line (streaming).
+Reads test vectors from stdin, line by line (streaming). Values are unsigned
+canonical residues in `[0, p)` for the BabyBear field (p = 2^31 - 2^27 + 1);
+expected outputs are already reduced mod p by the generator.
 
 Format per line:
     <x0> [x1 ...] : <y0>
@@ -12,6 +14,9 @@ Usage:
 
 Fuzz mode: exit non-zero on the first mismatch.
 """
+
+# BabyBear prime; mirrors the Lean and Rust sides.
+P = 2**31 - 2**27 + 1
 
 import signal
 import subprocess
@@ -35,10 +40,19 @@ def parse_line(line, lineno, arity):
         )
         return None
     try:
-        return [int(x) for x in left_parts], int(right_parts[0])
+        xs = [int(x) for x in left_parts]
+        y = int(right_parts[0])
     except ValueError:
         print(f"WARNING: line {lineno} non-integer, skipping: {line}", file=sys.stderr)
         return None
+    for v in (*xs, y):
+        if not (0 <= v < P):
+            print(
+                f"WARNING: line {lineno} value {v} out of [0, {P}), skipping: {line}",
+                file=sys.stderr,
+            )
+            return None
+    return xs, y
 
 
 def run_one(binary, vec, expected):

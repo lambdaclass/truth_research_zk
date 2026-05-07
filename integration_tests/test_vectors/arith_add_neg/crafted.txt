@@ -1,0 +1,7 @@
+# Crafted vectors for arith_spec_add_neg (y = x0 + (-x0) = 0, mod p).
+# Optimizer reduces to constant 0; arity 1 preserved.
+0 : 0
+1 : 0
+42 : 0
+2013265920 : 0
+1006632960 : 0

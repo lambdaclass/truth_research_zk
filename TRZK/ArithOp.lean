@@ -5,17 +5,15 @@ open LambdaSat UnionFind
 
 namespace TRZK
 
-/-- E-graph node type. Children are `EClassId`s rather than subterms. -/
+/-- E-graph node type. Children are `EClassId`s rather than subterms.
+    Mirrors `ArithExpr` post-step-1: BabyBear constants, no integer-only ops. -/
 inductive ArithOp where
-  | const : Int → ArithOp
+  | const : BabyBear → ArithOp
   | var   : Nat → ArithOp
   | add   : EClassId → EClassId → ArithOp
   | sub   : EClassId → EClassId → ArithOp
   | neg   : EClassId → ArithOp
   | mul   : EClassId → EClassId → ArithOp
-  | idiv  : EClassId → EClassId → ArithOp
-  | shl   : EClassId → EClassId → ArithOp
-  | shr   : EClassId → EClassId → ArithOp
   deriving Repr, Inhabited, DecidableEq
 
 instance : BEq ArithOp where
@@ -23,15 +21,12 @@ instance : BEq ArithOp where
 
 instance : Hashable ArithOp where
   hash
-    | .const n  => mixHash 1 (hash n)
-    | .var i    => mixHash 2 (hash i)
-    | .add l r  => mixHash 3 (mixHash (hash l) (hash r))
-    | .sub l r  => mixHash 4 (mixHash (hash l) (hash r))
-    | .neg c    => mixHash 5 (hash c)
-    | .mul l r  => mixHash 6 (mixHash (hash l) (hash r))
-    | .idiv l r => mixHash 7 (mixHash (hash l) (hash r))
-    | .shl l r  => mixHash 8 (mixHash (hash l) (hash r))
-    | .shr l r  => mixHash 9 (mixHash (hash l) (hash r))
+    | .const n => mixHash 1 (hash n)
+    | .var i   => mixHash 2 (hash i)
+    | .add l r => mixHash 3 (mixHash (hash l) (hash r))
+    | .sub l r => mixHash 4 (mixHash (hash l) (hash r))
+    | .neg c   => mixHash 5 (hash c)
+    | .mul l r => mixHash 6 (mixHash (hash l) (hash r))
 
 instance : LawfulBEq ArithOp where
   eq_of_beq {a b} h := by simp [BEq.beq] at h; exact h
@@ -43,99 +38,66 @@ instance : LawfulHashable ArithOp where
 
 instance : NodeOps ArithOp where
   children
-    | .const _  => []
-    | .var _    => []
-    | .add l r  => [l, r]
-    | .sub l r  => [l, r]
-    | .neg c    => [c]
-    | .mul l r  => [l, r]
-    | .idiv l r => [l, r]
-    | .shl l r  => [l, r]
-    | .shr l r  => [l, r]
+    | .const _ => []
+    | .var _   => []
+    | .add l r => [l, r]
+    | .sub l r => [l, r]
+    | .neg c   => [c]
+    | .mul l r => [l, r]
   mapChildren f
-    | .const n  => .const n
-    | .var i    => .var i
-    | .add l r  => .add (f l) (f r)
-    | .sub l r  => .sub (f l) (f r)
-    | .neg c    => .neg (f c)
-    | .mul l r  => .mul (f l) (f r)
-    | .idiv l r => .idiv (f l) (f r)
-    | .shl l r  => .shl (f l) (f r)
-    | .shr l r  => .shr (f l) (f r)
+    | .const n => .const n
+    | .var i   => .var i
+    | .add l r => .add (f l) (f r)
+    | .sub l r => .sub (f l) (f r)
+    | .neg c   => .neg (f c)
+    | .mul l r => .mul (f l) (f r)
   replaceChildren op cs :=
     match op, cs with
-    | .add _ _,  [l, r] => .add l r
-    | .sub _ _,  [l, r] => .sub l r
-    | .neg _,    [c]    => .neg c
-    | .mul _ _,  [l, r] => .mul l r
-    | .idiv _ _, [l, r] => .idiv l r
-    | .shl _ _,  [l, r] => .shl l r
-    | .shr _ _,  [l, r] => .shr l r
+    | .add _ _, [l, r] => .add l r
+    | .sub _ _, [l, r] => .sub l r
+    | .neg _,   [c]    => .neg c
+    | .mul _ _, [l, r] => .mul l r
     | op, _ => op
   localCost _ := 1
   mapChildren_children f op := by cases op <;> simp
   mapChildren_id op := by cases op <;> simp
   replaceChildren_children op ids hlen := by
     cases op with
-    | const _  => simp at hlen; simp [hlen]
-    | var _    => simp at hlen; simp [hlen]
-    | add _ _  =>
+    | const _ => simp at hlen; simp [hlen]
+    | var _   => simp at hlen; simp [hlen]
+    | add _ _ =>
       simp at hlen
       match ids, hlen with
       | [_, _], _ => simp
-    | sub _ _  =>
+    | sub _ _ =>
       simp at hlen
       match ids, hlen with
       | [_, _], _ => simp
-    | neg _    =>
+    | neg _   =>
       simp at hlen
       match ids, hlen with
       | [_], _ => simp
-    | idiv _ _ =>
-      simp at hlen
-      match ids, hlen with
-      | [_, _], _ => simp
     | mul _ _ =>
-      simp at hlen
-      match ids, hlen with
-      | [_, _], _ => simp
-    | shl _ _ =>
-      simp at hlen
-      match ids, hlen with
-      | [_, _], _ => simp
-    | shr _ _ =>
       simp at hlen
       match ids, hlen with
       | [_, _], _ => simp
   replaceChildren_sameShape op ids hlen := by
     cases op with
-    | const _  => simp at hlen; simp
-    | var _    => simp at hlen; simp
-    | add _ _  =>
+    | const _ => simp at hlen; simp
+    | var _   => simp at hlen; simp
+    | add _ _ =>
       simp at hlen
       match ids, hlen with
       | [_, _], _ => simp
-    | sub _ _  =>
+    | sub _ _ =>
       simp at hlen
       match ids, hlen with
       | [_, _], _ => simp
-    | neg _    =>
+    | neg _   =>
       simp at hlen
       match ids, hlen with
       | [_], _ => simp
-    | idiv _ _ =>
-      simp at hlen
-      match ids, hlen with
-      | [_, _], _ => simp
     | mul _ _ =>
-      simp at hlen
-      match ids, hlen with
-      | [_, _], _ => simp
-    | shl _ _ =>
-      simp at hlen
-      match ids, hlen with
-      | [_, _], _ => simp
-    | shr _ _ =>
       simp at hlen
       match ids, hlen with
       | [_, _], _ => simp
@@ -143,15 +105,12 @@ instance : NodeOps ArithOp where
 instance : Extractable ArithOp ArithExpr where
   reconstruct op childExprs :=
     match op, childExprs with
-    | .const n,  []     => some (.const n)
-    | .var i,    []     => some (.var i)
-    | .add _ _,  [l, r] => some (.add l r)
-    | .sub _ _,  [l, r] => some (.sub l r)
-    | .neg _,    [c]    => some (.neg c)
-    | .mul _ _,  [l, r] => some (.mul l r)
-    | .idiv _ _, [l, r] => some (.idiv l r)
-    | .shl _ _,  [l, r] => some (.shl l r)
-    | .shr _ _,  [l, r] => some (.shr l r)
-    | _, _              => none
+    | .const n, []     => some (.const n)
+    | .var i,   []     => some (.var i)
+    | .add _ _, [l, r] => some (.add l r)
+    | .sub _ _, [l, r] => some (.sub l r)
+    | .neg _,   [c]    => some (.neg c)
+    | .mul _ _, [l, r] => some (.mul l r)
+    | _, _             => none
 
 end TRZK
