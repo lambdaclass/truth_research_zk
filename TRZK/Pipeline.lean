@@ -29,9 +29,9 @@ partial def embed (g : EGraph ArithOp) : ArithExpr → (EClassId × EGraph Arith
 /-- End-to-end optimization: embed → saturate → extract lowest-cost form.
     Fuel constants (50, 10, 50) are sized for v0 with a single rule; revisit
     when rules can explode the graph. -/
-def optimize (expr : ArithExpr) : Option ArithExpr :=
+def optimize (rules : RuleSet) (expr : ArithExpr) : Option ArithExpr :=
   let (rootId, g0) := embed .empty expr
-  let g_sat  := saturateF (fuel := 50) (maxIter := 10) (rebuildFuel := 50) g0 allRules
+  let g_sat  := saturateF (fuel := 50) (maxIter := 10) (rebuildFuel := 50) g0 rules
   let g_cost := computeCostsF g_sat (fun _ => 1) 50
   extractAuto g_cost rootId
 
