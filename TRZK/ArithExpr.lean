@@ -5,6 +5,8 @@ inductive ArithExpr where
   | const : Int → ArithExpr
   | var   : Nat → ArithExpr
   | add   : ArithExpr → ArithExpr → ArithExpr
+  | sub   : ArithExpr → ArithExpr → ArithExpr
+  | neg   : ArithExpr → ArithExpr
   | mul   : ArithExpr → ArithExpr → ArithExpr
   | idiv  : ArithExpr → ArithExpr → ArithExpr
   | shl   : ArithExpr → ArithExpr → ArithExpr
@@ -16,6 +18,8 @@ def ArithExpr.size : ArithExpr → Nat
   | .const _  => 1
   | .var _    => 1
   | .add a b  => 1 + a.size + b.size
+  | .sub a b  => 1 + a.size + b.size
+  | .neg a    => 1 + a.size
   | .mul a b  => 1 + a.size + b.size
   | .idiv a b => 1 + a.size + b.size
   | .shl a b  => 1 + a.size + b.size
@@ -28,6 +32,8 @@ def ArithExpr.inputArity : ArithExpr → Nat
   | .const _  => 0
   | .var i    => i + 1
   | .add a b  => Nat.max a.inputArity b.inputArity
+  | .sub a b  => Nat.max a.inputArity b.inputArity
+  | .neg a    => a.inputArity
   | .mul a b  => Nat.max a.inputArity b.inputArity
   | .idiv a b => Nat.max a.inputArity b.inputArity
   | .shl a b  => Nat.max a.inputArity b.inputArity

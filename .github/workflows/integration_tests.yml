@@ -17,7 +17,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        op: [add0, mul, mul0, idiv1, shl, shr]
+        op: [add0, mul, mul0, neg, idiv1, shl, shr, sub]
 
     steps:
       - uses: actions/checkout@v4

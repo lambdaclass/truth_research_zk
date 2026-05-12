@@ -14,6 +14,13 @@ partial def embed (g : EGraph ArithOp) : ArithExpr → (EClassId × EGraph Arith
     let (ia, g1) := embed g a
     let (ib, g2) := embed g1 b
     g2.add ⟨.add ia ib⟩
+  | .sub a b  =>
+    let (ia, g1) := embed g a
+    let (ib, g2) := embed g1 b
+    g2.add ⟨.sub ia ib⟩
+  | .neg a    =>
+    let (ia, g1) := embed g a
+    g1.add ⟨.neg ia⟩
   | .mul a b =>
     let (ia, g1) := embed g a
     let (ib, g2) := embed g1 b

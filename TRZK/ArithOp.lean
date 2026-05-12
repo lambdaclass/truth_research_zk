@@ -10,6 +10,8 @@ inductive ArithOp where
   | const : Int → ArithOp
   | var   : Nat → ArithOp
   | add   : EClassId → EClassId → ArithOp
+  | sub   : EClassId → EClassId → ArithOp
+  | neg   : EClassId → ArithOp
   | mul   : EClassId → EClassId → ArithOp
   | idiv  : EClassId → EClassId → ArithOp
   | shl   : EClassId → EClassId → ArithOp
@@ -24,10 +26,12 @@ instance : Hashable ArithOp where
     | .const n  => mixHash 1 (hash n)
     | .var i    => mixHash 2 (hash i)
     | .add l r  => mixHash 3 (mixHash (hash l) (hash r))
-    | .mul l r  => mixHash 4 (mixHash (hash l) (hash r))
-    | .idiv l r => mixHash 5 (mixHash (hash l) (hash r))
-    | .shl l r  => mixHash 6 (mixHash (hash l) (hash r))
-    | .shr l r  => mixHash 7 (mixHash (hash l) (hash r))
+    | .sub l r  => mixHash 4 (mixHash (hash l) (hash r))
+    | .neg c    => mixHash 5 (hash c)
+    | .mul l r  => mixHash 6 (mixHash (hash l) (hash r))
+    | .idiv l r => mixHash 7 (mixHash (hash l) (hash r))
+    | .shl l r  => mixHash 8 (mixHash (hash l) (hash r))
+    | .shr l r  => mixHash 9 (mixHash (hash l) (hash r))
 
 instance : LawfulBEq ArithOp where
   eq_of_beq {a b} h := by simp [BEq.beq] at h; exact h
@@ -42,6 +46,8 @@ instance : NodeOps ArithOp where
     | .const _  => []
     | .var _    => []
     | .add l r  => [l, r]
+    | .sub l r  => [l, r]
+    | .neg c    => [c]
     | .mul l r  => [l, r]
     | .idiv l r => [l, r]
     | .shl l r  => [l, r]
@@ -50,6 +56,8 @@ instance : NodeOps ArithOp where
     | .const n  => .const n
     | .var i    => .var i
     | .add l r  => .add (f l) (f r)
+    | .sub l r  => .sub (f l) (f r)
+    | .neg c    => .neg (f c)
     | .mul l r  => .mul (f l) (f r)
     | .idiv l r => .idiv (f l) (f r)
     | .shl l r  => .shl (f l) (f r)
@@ -57,6 +65,8 @@ instance : NodeOps ArithOp where
   replaceChildren op cs :=
     match op, cs with
     | .add _ _,  [l, r] => .add l r
+    | .sub _ _,  [l, r] => .sub l r
+    | .neg _,    [c]    => .neg c
     | .mul _ _,  [l, r] => .mul l r
     | .idiv _ _, [l, r] => .idiv l r
     | .shl _ _,  [l, r] => .shl l r
@@ -73,6 +83,14 @@ instance : NodeOps ArithOp where
       simp at hlen
       match ids, hlen with
       | [_, _], _ => simp
+    | sub _ _  =>
+      simp at hlen
+      match ids, hlen with
+      | [_, _], _ => simp
+    | neg _    =>
+      simp at hlen
+      match ids, hlen with
+      | [_], _ => simp
     | idiv _ _ =>
       simp at hlen
       match ids, hlen with
@@ -97,6 +115,14 @@ instance : NodeOps ArithOp where
       simp at hlen
       match ids, hlen with
       | [_, _], _ => simp
+    | sub _ _  =>
+      simp at hlen
+      match ids, hlen with
+      | [_, _], _ => simp
+    | neg _    =>
+      simp at hlen
+      match ids, hlen with
+      | [_], _ => simp
     | idiv _ _ =>
       simp at hlen
       match ids, hlen with
@@ -120,6 +146,8 @@ instance : Extractable ArithOp ArithExpr where
     | .const n,  []     => some (.const n)
     | .var i,    []     => some (.var i)
     | .add _ _,  [l, r] => some (.add l r)
+    | .sub _ _,  [l, r] => some (.sub l r)
+    | .neg _,    [c]    => some (.neg c)
     | .mul _ _,  [l, r] => some (.mul l r)
     | .idiv _ _, [l, r] => some (.idiv l r)
     | .shl _ _,  [l, r] => some (.shl l r)

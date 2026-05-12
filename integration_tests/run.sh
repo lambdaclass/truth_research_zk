@@ -7,7 +7,7 @@ set -euo pipefail
 # Usage: ./integration_tests/run.sh --op OP [--fuzz] [-n COUNT]
 # (run from project root)
 
-OPS=(add0 mul mul0 idiv1 shl shr)
+OPS=(add0 mul mul0 idiv1 shl shr sub neg)
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -68,6 +68,8 @@ case "$OP" in
     idiv1) ARITY=1 ;;
     shl) ARITY=2 ;;
     shr) ARITY=1 ;;
+    sub) ARITY=2 ;;
+    neg) ARITY=1 ;;
     *) echo "Internal error: no arity registered for op '$OP'" >&2; exit 2 ;;
 esac
 
