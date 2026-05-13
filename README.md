@@ -23,11 +23,17 @@ Multiplicative inverse, multiple representations (Montgomery), multiple fields
 (Goldilocks), exponentiation, NTT, ZK primitives. All deferred to future
 iterations.
 
+## Roadmap
+
+- Field / representation generalization
+- Matrix operations
+- NTT support
+
 ## Dependencies
 
-Saturation is delegated to [optisat / LambdaSat](https://github.com/lambdaclass/truth_research),
-a formally verified e-graph + saturation engine. We plug in via typeclass
-instances; we do not reimplement the engine.
+- [optisat / LambdaSat](https://github.com/lambdaclass/truth_research) — verified e-graph + saturation.
+- Lean 4.26.0 (see `lean-toolchain`).
+- Mathlib `v4.26.0`.
 
 ## Usage
 
