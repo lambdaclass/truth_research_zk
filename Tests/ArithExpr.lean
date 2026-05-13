@@ -26,3 +26,17 @@ open TRZK
 -- BabyBear constants distinct from one another via field equality.
 #guard (ArithExpr.const 0) != (.const 1)
 #guard (ArithExpr.add (.var 0) (.const 7)) != (.add (.var 0) (.const 8))
+
+-- Montgomery / conversion ops.
+#guard ArithExpr.size (.toMont (.var 0)) == 2
+#guard ArithExpr.size (.fromMont (.var 0)) == 2
+#guard ArithExpr.size (.montMul (.var 0) (.var 1)) == 3
+#guard ArithExpr.size (.fromMont (.montMul (.toMont (.var 0)) (.toMont (.var 1)))) == 6
+
+#guard (ArithExpr.toMont (.var 0)) != (.fromMont (.var 0))
+#guard (ArithExpr.mul (.var 0) (.var 1)) != (.montMul (.var 0) (.var 1))
+
+-- Arity passes through conversion ops unchanged.
+#guard ArithExpr.inputArity (.toMont (.var 3)) == 4
+#guard ArithExpr.inputArity (.fromMont (.var 3)) == 4
+#guard ArithExpr.inputArity (.montMul (.var 0) (.var 2)) == 3

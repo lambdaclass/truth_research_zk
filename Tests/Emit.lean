@@ -55,3 +55,20 @@ private def fnSig (arity : Nat) (e : ArithExpr) : String :=
 
 -- The helper preamble is non-empty and starts with the modulus const.
 #guard (emitHelpers.splitOn s!"const P: u32 = {BabyBear.p}u32;").length == 2
+
+-- Montgomery / conversion ops lower to the runtime helpers.
+#guard emitBody (.toMont (.var 0)) == "bb_to_mont(x0)"
+#guard emitBody (.fromMont (.var 0)) == "bb_from_mont(x0)"
+#guard emitBody (.montMul (.var 0) (.var 1)) == "bb_mont_mul(x0, x1)"
+#guard
+  emitBody (.fromMont (.montMul (.toMont (.var 0)) (.toMont (.var 1))))
+    == "bb_from_mont(bb_mont_mul(bb_to_mont(x0), bb_to_mont(x1)))"
+
+-- Helper preamble carries the Montgomery constants and core REDC routine.
+#guard (emitHelpers.splitOn s!"const R: u32 = ").length == 2
+#guard (emitHelpers.splitOn "const R_SQUARED: u32 = ").length == 2
+#guard (emitHelpers.splitOn "const P_INV_NEG: u32 = ").length == 2
+#guard (emitHelpers.splitOn "fn bb_redc(").length == 2
+#guard (emitHelpers.splitOn "fn bb_to_mont(").length == 2
+#guard (emitHelpers.splitOn "fn bb_from_mont(").length == 2
+#guard (emitHelpers.splitOn "fn bb_mont_mul(").length == 2
