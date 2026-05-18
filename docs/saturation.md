@@ -45,8 +45,8 @@ These also live locally under `.lake/packages/optisat/` after `lake update`.
 
 ## Representation-aware rewrites
 
-Step 2 introduces Montgomery representation as a first-class concept. The
-mixed rule set (`RuleSet.babybearMixed`) extends the canonical-only set with:
+Montgomery representation is a first-class concept. The mixed rule set
+(`RuleSet.babybearMixed`) extends the canonical-only set with:
 
 - **Round-trip elimination** (`to_from_mont`, `from_to_mont`): both
   directions of `to_mont (from_mont _)` and `from_mont (to_mont _)` collapse
@@ -63,16 +63,6 @@ mixed rule set (`RuleSet.babybearMixed`) extends the canonical-only set with:
   literal zero. General `to_mont (.const c) → .const (c · R mod p)` requires
   computed-RHS rule support the engine does not currently provide and is
   deferred to a follow-up.
-
-### Saturation budget
-
-The mixed rule set roughly doubles the e-class count (every value can now
-appear in either representation). Default `saturateF` fuel constants
-(50 / 10 / 50) have been adequate on the test suite, but rule density may
-demand re-tuning when the rule set grows. Diagnostic output that
-distinguishes "saturated normally" from "fuel exhausted" is a separate
-workstream — until then, treat extraction outcomes on large specs as
-provisional and verify against measured behaviour.
 
 ### Why directed rather than bidirectional
 

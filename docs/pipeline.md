@@ -67,13 +67,13 @@ Inside the function body, the optimizer may have selected the Montgomery
 realisation for some subexpressions; the `to_mont` / `from_mont` ops wrap
 those subexpressions so the boundary contract is preserved. Per-parameter
 Montgomery contracts (so a hot-path kernel can accept already-Montgomery
-inputs) are a planned follow-up, not part of this step.
+inputs) are planned.
 
 ## Representation as a first-class concept
 
-After step 2, the BabyBear value type carries a `FieldRepr` tag —
-`BabyBear .canonical` or `BabyBear .montgomery` — and the AST distinguishes
-canonical and Montgomery realisations of the same field element via:
+The BabyBear value type carries a `FieldRepr` tag — `BabyBear .canonical` or
+`BabyBear .montgomery` — and the AST distinguishes canonical and Montgomery
+realisations of the same field element via:
 
 - `to_mont` / `from_mont`: explicit conversion ops with nonzero cost
 - `mont_mul`: Montgomery-domain multiplication, distinct from canonical `mul`
