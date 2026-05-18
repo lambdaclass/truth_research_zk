@@ -1,5 +1,4 @@
--- ArithExpr spec exercising a chain of three muls: x0 * (x1 * (x2 * x3)).
--- With the Montgomery-mixed rule set.
+-- Exercise Montgomery rules with chain of three muls: x0 * (x1 * (x2 * x3))
 open TRZK (ArithExpr)
 
 def spec : ArithExpr :=
