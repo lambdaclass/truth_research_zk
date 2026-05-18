@@ -45,26 +45,13 @@ instance : LawfulHashable ArithOp where
 
 /-- Per-op local cost. Not hardware-calibrated; chosen so the qualitative
     extraction behaviour matches the design's intent:
-
     - A single `mul` is kept canonical (conversion cost outweighs Montgomery
       savings).
     - A chain of three or more `mul`s prefers Montgomery (savings amortise
       the conversion overhead).
-
-    Rationale (design D5; calibration deferred per R4):
-    - `add`/`sub`/`neg`: 1 (one ALU op + at most one conditional reduction).
-    - `mul`: 8 (one widening mul + one modular reduction; the reduction is
-      modeled as dominating the ALU work).
-    - `montMul`: 1 (a widening mul + REDC's shifts/adds, all of which fuse
-      cheaply with the mul; the cost gap to canonical `mul` is what makes
-      Montgomery viable for chains).
-    - `toMont`/`fromMont`: 4 each (one `bb_redc` ≈ a small constant amount
-      of work on the underlying integer).
-    - `const`/`var`: 0 (loads, not work).
-
-    With these weights, a k-chain of canonical muls costs `8k`; the
-    saturated Montgomery realisation costs `k · 1 + (k+1) · 4 + 4 =
-    5k + 8`. Crossover is at k = 3. -/
+    With the current weights, a k-chain of canonical muls costs `8k`; the
+    saturated Montgomery realisation costs `k · 1 + (k+1) · 4 + 4 = 5k + 8`.
+    Crossover is at k = 3. -/
 def ArithOp.localCost : ArithOp → Nat
   | .const _     => 0
   | .var _       => 0
