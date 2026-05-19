@@ -41,8 +41,11 @@ def negNeg : RewriteRule ArithOp where
   lhs := .node (.neg 0) [.node (.neg 0) [.patVar 0]]
   rhs := .patVar 0
 
-/-- Registry of active rewrite rules. Adding a rule is a one-line change here. -/
-def allRules : List (RewriteRule ArithOp) :=
+/-- The list of rewrite rules `Pipeline.optimize` consumes. -/
+abbrev RuleSet := List (RewriteRule ArithOp)
+
+/-- BabyBear rule set in the naive representation. -/
+def RuleSet.babybearNaive : RuleSet :=
   [addZeroRight, addNegSelf, mulOneRight, mulZeroRight, subSelfZero, negNeg]
 
 end TRZK

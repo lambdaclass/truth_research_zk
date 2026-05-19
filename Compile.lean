@@ -52,7 +52,7 @@ def main : IO Unit := do
   IO.FS.createDirAll \"{artifactsDir}\"
   IO.FS.writeFile \"{artifactsDir}/{baseName}.pre.txt\" (toString (repr spec))
   let arity := spec.inputArity
-  match optimize spec with
+  match optimize RuleSet.babybearNaive spec with
   | none =>
     IO.eprintln \"optimize returned none\"
     IO.Process.exit 1
