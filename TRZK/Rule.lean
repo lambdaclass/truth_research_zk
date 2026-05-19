@@ -10,6 +10,12 @@ def addZeroRight : RewriteRule ArithOp where
   lhs := .node (.add 0 0) [.patVar 0, .node (.const 0) []]
   rhs := .patVar 0
 
+/-- Additive inverse: `x + (−x) → 0`. -/
+def addNegSelf : RewriteRule ArithOp where
+  name := "add_neg_self"
+  lhs := .node (.add 0 0) [.patVar 0, .node (.neg 0) [.patVar 0]]
+  rhs := .node (.const 0) []
+
 /-- Right-identity of `Mul`: `e * 1 → e`. -/
 def mulOneRight : RewriteRule ArithOp where
   name := "mul_one_right"
@@ -22,24 +28,6 @@ def mulZeroRight : RewriteRule ArithOp where
   name := "mul_zero_right"
   lhs := .node (.mul 0 0) [.patVar 0, .node (.const 0) []]
   rhs := .node (.const 0) []
-
-/-- Right-identity of `IDiv`: `e / 1 → e`. -/
-def idivOneRight : RewriteRule ArithOp where
-  name := "idiv_one_right"
-  lhs := .node (.idiv 0 0) [.patVar 0, .node (.const 1) []]
-  rhs := .patVar 0
-
-/-- Shift-by-zero is identity: `e << 0 → e`. -/
-def shlZeroRight : RewriteRule ArithOp where
-  name := "shl_zero_right"
-  lhs := .node (.shl 0 0) [.patVar 0, .node (.const 0) []]
-  rhs := .patVar 0
-
-/-- Right-identity of `Shr` (logical right shift): `e >> 0 → e`. -/
-def shrZeroRight : RewriteRule ArithOp where
-  name := "shr_zero_right"
-  lhs := .node (.shr 0 0) [.patVar 0, .node (.const 0) []]
-  rhs := .patVar 0
 
 /-- Self-subtraction: `x - x → 0`. -/
 def subSelfZero : RewriteRule ArithOp where
@@ -55,7 +43,6 @@ def negNeg : RewriteRule ArithOp where
 
 /-- Registry of active rewrite rules. Adding a rule is a one-line change here. -/
 def allRules : List (RewriteRule ArithOp) :=
-  [addZeroRight, mulOneRight, mulZeroRight, idivOneRight, shlZeroRight, shrZeroRight,
-   subSelfZero, negNeg]
+  [addZeroRight, addNegSelf, mulOneRight, mulZeroRight, subSelfZero, negNeg]
 
 end TRZK

@@ -1,7 +1,10 @@
 # Glossary
 
 - **ArithExpr** — TRZK's user-facing AST (`TRZK/ArithExpr.lean`).
-  Tree-shaped: `Const Int | Var Nat | Add ArithExpr ArithExpr`.
+  Tree-shaped: `Const BabyBear | Var Nat | Add … | Sub … | Neg … | Mul …`.
+- **BabyBear** — finite field of order `p = 2³¹ − 2²⁷ + 1 = 2013265921`,
+  defined as `def BabyBear := ZMod p` (`TRZK/Field/BabyBear.lean`).
+- **ZMod p** — Mathlib's quotient ring `ℤ / pℤ`. A `Field` when `p` is prime.
 - **ArithOp** — TRZK's e-graph node type (`TRZK/ArithOp.lean`).
   Flat: children are `EClassId`s, not subtrees. Distinct from `ArithExpr`
   because optisat's engine wants flat nodes; we bridge with `Extractable`.

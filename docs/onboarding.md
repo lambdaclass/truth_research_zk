@@ -42,7 +42,7 @@ the verifier. Registered ops live in `OPS=(...)` in `run.sh`.
    def spec : ArithExpr := .add (.var 0) (.var 1)
    ```
 2. Compile: `./.lake/build/bin/trzk integration_tests/my_spec.lean --output /tmp/my.rs`
-3. Inspect: `cat /tmp/my.rs` and `cat integration_tests/artifacts/my.{pre,post}.txt`
+3. Inspect: `cat /tmp/my.rs` and `cat /tmp/artifacts/my.{pre,post}.txt`
 
 ## Add a new rewrite rule
 

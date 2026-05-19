@@ -7,10 +7,6 @@ open TRZK
 #guard ArithExpr.inputArity (.const 5) == 0
 #guard ArithExpr.inputArity (.mul (.var 1) (.var 0)) == 2
 #guard ArithExpr.inputArity (.mul (.var 2) (.mul (.var 0) (.var 2))) == 3
-#guard ArithExpr.inputArity (.idiv (.var 1) (.var 0)) == 2
-#guard ArithExpr.inputArity (.idiv (.var 0) (.const 1)) == 1
-#guard ArithExpr.inputArity (.shl (.var 0) (.var 1)) == 2
-#guard ArithExpr.inputArity (.shr (.var 1) (.var 0)) == 2
 #guard ArithExpr.inputArity (.sub (.var 1) (.var 0)) == 2
 #guard ArithExpr.inputArity (.sub (.var 2) (.sub (.var 0) (.var 2))) == 3
 #guard ArithExpr.inputArity (.neg (.var 3)) == 4
@@ -23,36 +19,39 @@ open TRZK
 #guard (ArithExpr.usedVars 2 (.neg (.var 1))) == #[false, true]
 #guard (ArithExpr.usedVars 1 (.neg (.const 3))) == #[false]
 
-private def emitArity (e : ArithExpr) : String :=
-  emitFunction "arith_spec" e.inputArity e
+private def emitBody (e : ArithExpr) : String := emitExpr e
 
-#guard emitArity (.const 0) == "pub fn arith_spec() -> isize { 0isize }"
-#guard emitArity (.var 0) == "pub fn arith_spec(x0: isize) -> isize { x0 }"
-#guard emitArity (.add (.var 0) (.var 1)) == "pub fn arith_spec(x0: isize, x1: isize) -> isize { x0.wrapping_add(x1) }"
-#guard emitArity (.add (.var 0) (.const 0)) == "pub fn arith_spec(x0: isize) -> isize { x0.wrapping_add(0isize) }"
-#guard emitArity (.const (-5)) == "pub fn arith_spec() -> isize { (-5isize) }"
-#guard emitArity (.add (.var 0) (.const (-1))) == "pub fn arith_spec(x0: isize) -> isize { x0.wrapping_add((-1isize)) }"
-#guard emitArity (.mul (.var 0) (.var 1)) == "pub fn arith_spec(x0: isize, x1: isize) -> isize { x0.wrapping_mul(x1) }"
-#guard emitArity (.mul (.var 0) (.const 1)) == "pub fn arith_spec(x0: isize) -> isize { x0.wrapping_mul(1isize) }"
-#guard emitArity (.mul (.var 0) (.const (-2))) == "pub fn arith_spec(x0: isize) -> isize { x0.wrapping_mul((-2isize)) }"
-#guard emitArity (.idiv (.var 0) (.var 1)) == "pub fn arith_spec(x0: isize, x1: isize) -> isize { (x0 / x1) }"
-#guard emitArity (.idiv (.var 0) (.const 1)) == "pub fn arith_spec(x0: isize) -> isize { (x0 / 1isize) }"
-#guard emitArity (.idiv (.var 0) (.const (-2))) == "pub fn arith_spec(x0: isize) -> isize { (x0 / (-2isize)) }"
-#guard emitArity (.shl (.var 0) (.const 0)) == "pub fn arith_spec(x0: isize) -> isize { x0.unbounded_shl(0isize as u32) }"
-#guard emitArity (.shl (.var 0) (.var 1)) == "pub fn arith_spec(x0: isize, x1: isize) -> isize { x0.unbounded_shl(x1 as u32) }"
-#guard emitArity (.shr (.var 0) (.const 0)) == "pub fn arith_spec(x0: isize) -> isize { ((x0 as usize).unbounded_shr(0isize as u32) as isize) }"
-#guard emitArity (.shr (.var 0) (.var 1)) == "pub fn arith_spec(x0: isize, x1: isize) -> isize { ((x0 as usize).unbounded_shr(x1 as u32) as isize) }"
+#guard emitBody (.const 0) == "0u32"
+#guard emitBody (.const 7) == "7u32"
+#guard emitBody (.var 0) == "x0"
+#guard emitBody (.add (.var 0) (.var 1)) == "bb_add(x0, x1)"
+#guard emitBody (.add (.var 0) (.const 0)) == "bb_add(x0, 0u32)"
+#guard emitBody (.mul (.var 0) (.var 1)) == "bb_mul(x0, x1)"
+#guard emitBody (.mul (.var 0) (.const 1)) == "bb_mul(x0, 1u32)"
+#guard emitBody (.sub (.var 0) (.var 1)) == "bb_sub(x0, x1)"
+#guard emitBody (.sub (.var 0) (.const 3)) == "bb_sub(x0, 3u32)"
+#guard emitBody (.neg (.var 0)) == "bb_neg(x0)"
+#guard emitBody (.neg (.const 5)) == "bb_neg(5u32)"
+#guard emitBody (.neg (.neg (.var 0))) == "bb_neg(bb_neg(x0))"
 
-#guard emitArity (.sub (.var 0) (.var 1)) == "pub fn arith_spec(x0: isize, x1: isize) -> isize { x0.wrapping_sub(x1) }"
-#guard emitArity (.sub (.var 0) (.const 3)) == "pub fn arith_spec(x0: isize) -> isize { x0.wrapping_sub(3isize) }"
-#guard emitArity (.sub (.var 0) (.const (-2))) == "pub fn arith_spec(x0: isize) -> isize { x0.wrapping_sub((-2isize)) }"
-#guard emitArity (.neg (.var 0)) == "pub fn arith_spec(x0: isize) -> isize { x0.wrapping_neg() }"
-#guard emitArity (.neg (.const 5)) == "pub fn arith_spec() -> isize { 5isize.wrapping_neg() }"
-#guard emitArity (.neg (.const (-7))) == "pub fn arith_spec() -> isize { (-7isize).wrapping_neg() }"
-#guard emitArity (.neg (.neg (.var 0))) == "pub fn arith_spec(x0: isize) -> isize { x0.wrapping_neg().wrapping_neg() }"
+-- BabyBear field reduces literals into [0, p): -1 ≡ p-1.
+#guard emitBody (.const (BabyBear.ofNat 0 - BabyBear.ofNat 1)) == s!"{BabyBear.p - 1}u32"
 
--- Arity preservation: caller passes a wider arity than the body uses
--- (simulating an opt that eliminated `var 1`); unused params get `_`.
-#guard emitFunction "arith_spec" 2 (.var 0) == "pub fn arith_spec(x0: isize, _x1: isize) -> isize { x0 }"
-#guard emitFunction "arith_spec" 3 (.const 0) == "pub fn arith_spec(_x0: isize, _x1: isize, _x2: isize) -> isize { 0isize }"
-#guard emitFunction "arith_spec" 3 (.add (.var 0) (.var 2)) == "pub fn arith_spec(x0: isize, _x1: isize, x2: isize) -> isize { x0.wrapping_add(x2) }"
+private def fnSig (arity : Nat) (e : ArithExpr) : String :=
+  let body := emitFunction "arith_spec" arity e
+  -- Strip the helper preamble so tests focus on the function signature/body.
+  let helpersLen := emitHelpers.length
+  body.drop (helpersLen + 1)
+
+#guard fnSig 0 (.const 0) == "pub fn arith_spec() -> u32 { 0u32 }"
+#guard fnSig 1 (.var 0) == "pub fn arith_spec(x0: u32) -> u32 { x0 }"
+#guard fnSig 2 (.add (.var 0) (.var 1)) == "pub fn arith_spec(x0: u32, x1: u32) -> u32 { bb_add(x0, x1) }"
+
+-- Arity preservation: caller passes a wider arity than the body uses; unused
+-- params get `_`.
+#guard fnSig 2 (.var 0) == "pub fn arith_spec(x0: u32, _x1: u32) -> u32 { x0 }"
+#guard fnSig 3 (.const 0) == "pub fn arith_spec(_x0: u32, _x1: u32, _x2: u32) -> u32 { 0u32 }"
+#guard fnSig 3 (.add (.var 0) (.var 2)) == "pub fn arith_spec(x0: u32, _x1: u32, x2: u32) -> u32 { bb_add(x0, x2) }"
+
+-- The helper preamble is non-empty and starts with the modulus const.
+#guard (emitHelpers.splitOn s!"const P: u32 = {BabyBear.p}u32;").length == 2

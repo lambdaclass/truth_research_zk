@@ -43,12 +43,21 @@ The bridge between our world and optisat's lives entirely in
 
 `TRZK/Emit.lean` turns an `ArithExpr` into a Rust string:
 
-- `collectVars` — sorted, deduped variable indices
-- `emitExpr` — infix `+` with `isize` literals; negative constants parenthesized
-- `emitFunction name e` — full `pub fn <name>(...) -> isize { ... }`
+- `usedVarsAux` — boolean array of length `arity` marking referenced vars
+- `emitHelpers` — preamble defining `const P` and helpers `bb_add`, `bb_sub`,
+  `bb_neg`, `bb_mul`. Naive canonical reduction: `u32` params, `u64`
+  intermediates, explicit reduction back into `[0, p)`.
+- `emitExpr` — `u32` BabyBear expression; constants are canonical residues,
+  ops delegate to the helpers
+- `emitFunction name arity e` — full `pub fn <name>(...) -> u32 { ... }` with
+  the helper preamble prepended
 
 **Input**: `ArithExpr`.
 **Output**: a `String` of Rust source.
+
+Values flow as canonical residues in `[0, p)` end-to-end: BabyBear constants
+on the Lean side, decimal `u32` strings at the harness boundary, `u32`
+arguments and return value in the generated kernel.
 
 ## 4. Execute — scripts
 
@@ -56,7 +65,8 @@ The bridge between our world and optisat's lives entirely in
 
 1. `lake build trzk`
 2. `trzk <spec> --output <scriptdir>/generated.rs`
-3. `rustc -O --edition 2024 harness.rs -o /tmp/arith_${OP}`
+3. `rustc -O --edition 2024 harness.rs -o <bin>` with `--cfg arity="N"` and
+   `--cfg field="babybear"` to select the matching call signature.
 4. Pipe crafted vectors (or a generator for `--fuzz`) into
    `verify_arith.py --binary ... --arity N`.
 

@@ -35,6 +35,10 @@ proof is available for future work.
 
 ## Further reading
 
-- `/Users/pelito/Code/truth_research/ARCHITECTURE.md` — optisat internals
-- `/Users/pelito/Code/truth_research/LambdaSat/SaturationSpec.lean` — saturation spec
-- `/Users/pelito/Code/truth_research/LambdaSat/Extraction.lean` — extraction
+In the optisat repo (https://github.com/lambdaclass/truth_research):
+
+- `ARCHITECTURE.md` — optisat internals
+- `LambdaSat/SaturationSpec.lean` — saturation spec
+- `LambdaSat/Extraction.lean` — extraction
+
+These also live locally under `.lake/packages/optisat/` after `lake update`.

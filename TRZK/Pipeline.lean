@@ -8,35 +8,23 @@ namespace TRZK
 /-- Recursively embed an `ArithExpr` into an `EGraph`.
     Returns the root e-class id and the updated graph. -/
 partial def embed (g : EGraph ArithOp) : ArithExpr → (EClassId × EGraph ArithOp)
-  | .const n  => g.add ⟨.const n⟩
-  | .var i    => g.add ⟨.var i⟩
-  | .add a b  =>
+  | .const n => g.add ⟨.const n⟩
+  | .var i   => g.add ⟨.var i⟩
+  | .add a b =>
     let (ia, g1) := embed g a
     let (ib, g2) := embed g1 b
     g2.add ⟨.add ia ib⟩
-  | .sub a b  =>
+  | .sub a b =>
     let (ia, g1) := embed g a
     let (ib, g2) := embed g1 b
     g2.add ⟨.sub ia ib⟩
-  | .neg a    =>
+  | .neg a   =>
     let (ia, g1) := embed g a
     g1.add ⟨.neg ia⟩
   | .mul a b =>
     let (ia, g1) := embed g a
     let (ib, g2) := embed g1 b
     g2.add ⟨.mul ia ib⟩
-  | .idiv a b =>
-    let (ia, g1) := embed g a
-    let (ib, g2) := embed g1 b
-    g2.add ⟨.idiv ia ib⟩
-  | .shl a b =>
-    let (ia, g1) := embed g a
-    let (ib, g2) := embed g1 b
-    g2.add ⟨.shl ia ib⟩
-  | .shr a b =>
-    let (ia, g1) := embed g a
-    let (ib, g2) := embed g1 b
-    g2.add ⟨.shr ia ib⟩
 
 /-- End-to-end optimization: embed → saturate → extract lowest-cost form.
     Fuel constants (50, 10, 50) are sized for v0 with a single rule; revisit
