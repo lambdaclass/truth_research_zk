@@ -21,6 +21,7 @@ P = 2**31 - 2**27 + 1
 ARITY = {
     "add0": 1,
     "mul": 2,
+    "mul_chain": 4,
     "mul0": 1,
     "sub": 2,
     "neg": 1,
@@ -35,6 +36,11 @@ def reference(op: str, xs: list[int]) -> int:
     if op == "mul":
         # arith_spec_mul: y = (x0 * 1) * x1 → x0 * x1 (mod p).
         return (xs[0] * xs[1]) % P
+    if op == "mul_chain":
+        # arith_spec_mul_chain: y = x0 * x1 * x2 * x3 (mod p). The optimizer
+        # selects the Montgomery realisation internally; the function-boundary
+        # contract is still canonical residues in / canonical residue out.
+        return (xs[0] * xs[1] * xs[2] * xs[3]) % P
     if op == "mul0":
         # arith_spec_mul0: y = x0 * 0 = 0. Optimizer eliminates x0; arity 1
         # preserved.

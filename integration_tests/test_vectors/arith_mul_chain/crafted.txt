@@ -1,0 +1,13 @@
+# Crafted vectors for arith_spec_mul_chain (y = x0 * x1 * x2 * x3, mod p).
+# BabyBear: p = 2013265921. Exercises the Montgomery realisation that
+# cost-aware extraction picks for 3+ chained multiplications.
+0 1 1 1 : 0
+1 0 1 1 : 0
+1 1 0 1 : 0
+1 1 1 0 : 0
+1 1 1 1 : 1
+2 3 5 7 : 210
+2013265920 1 1 1 : 2013265920
+2013265920 2013265920 1 1 : 1
+2013265920 2013265920 2013265920 1 : 2013265920
+2013265920 2013265920 2013265920 2013265920 : 1

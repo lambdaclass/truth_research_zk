@@ -42,3 +42,35 @@ In the optisat repo (https://github.com/lambdaclass/truth_research):
 - `LambdaSat/Extraction.lean` — extraction
 
 These also live locally under `.lake/packages/optisat/` after `lake update`.
+
+## Representation-aware rewrites
+
+Montgomery representation is a first-class concept. The mixed rule set
+(`RuleSet.babybearMixed`) extends the canonical-only set with:
+
+- **Round-trip elimination** (`to_from_mont`, `from_to_mont`): both
+  directions of `to_mont (from_mont _)` and `from_mont (to_mont _)` collapse
+  to the inner expression. These are noise-rules whose job is cleanup; they
+  fire freely.
+- **Cross-repr lowering** (`mul_cross_repr`): a directed rule
+  `mul a b → from_mont (mont_mul (to_mont a) (to_mont b))`. Saturation
+  introduces the Montgomery realisation on any canonical mul; the round-trip
+  rules then collapse the conversions when an inner subexpression is already
+  Montgomery (e.g. a chained `mul (mul x y) z` resolves to a chain of
+  `mont_mul`s bracketed by one `from_mont` and the leaf `to_mont`s).
+- **Trivial constant folds** (`to_mont_zero`, `from_mont_zero`): the
+  Montgomery encoding of `0` is `0`, so both conversions collapse on
+  literal zero. General `to_mont (.const c) → .const (c · R mod p)` requires
+  computed-RHS rule support the engine does not currently provide and is
+  deferred to a follow-up.
+
+### Why directed rather than bidirectional
+
+Conversion-elimination is kept as two distinct directed rules
+(`to_from_mont` and `from_to_mont`) rather than one bidirectional rule.
+Bidirectional cross-repr rules interact pathologically with round-trip
+elimination: each firing introduces conversions that the round-trip rules
+immediately collapse, growing node count without progress on the e-class
+structure. Keeping `mul_cross_repr` single-direction breaks the cycle —
+saturation introduces Montgomery realisations on canonical muls, and the
+round-trip rules clean up.

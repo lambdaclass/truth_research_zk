@@ -7,7 +7,7 @@ set -euo pipefail
 # Usage: ./integration_tests/run.sh --op OP [--fuzz] [-n COUNT]
 # (run from project root)
 
-OPS=(add0 mul mul0 sub neg add_neg)
+OPS=(add0 mul mul_chain mul0 sub neg add_neg)
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -63,6 +63,7 @@ echo "Generating Rust from arith_spec_${OP}.lean..."
 case "$OP" in
     add0) ARITY=1 ;;
     mul) ARITY=2 ;;
+    mul_chain) ARITY=4 ;;
     mul0) ARITY=1 ;;
     sub) ARITY=2 ;;
     neg) ARITY=1 ;;
@@ -75,7 +76,7 @@ FIELD="babybear"
 # 3. Compile harness (which #[path]s the generated file).
 echo "Compiling..."
 rustc -O --edition 2024 \
-    --check-cfg 'cfg(arity, values("1", "2"))' \
+    --check-cfg 'cfg(arity, values("1", "2", "4"))' \
     --check-cfg 'cfg(field, values("babybear"))' \
     --cfg "arity=\"${ARITY}\"" \
     --cfg "field=\"${FIELD}\"" \
