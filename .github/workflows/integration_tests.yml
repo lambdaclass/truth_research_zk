@@ -11,13 +11,23 @@ permissions:
 
 jobs:
   integration:
-    name: arith_spec_${{ matrix.op }}
+    name: ${{ matrix.op }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
-        op: [add_neg, add0, mul, mul0, neg, sub]
+        op:
+          - arith_add_neg
+          - arith_add0
+          - arith_mul
+          - arith_mul_chain
+          - arith_mul0
+          - arith_neg
+          - arith_sub
+          - matrix_matmul
+          - matrix_matmul_const
+          - matrix_transpose_matmul
 
     steps:
       - uses: actions/checkout@v4

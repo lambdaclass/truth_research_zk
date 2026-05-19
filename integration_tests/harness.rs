@@ -42,6 +42,18 @@ fn call(xs: &[u32]) -> u32 {
     }
 }
 
+#[cfg(all(arity = "8", field = "babybear"))]
+fn call(xs: &[u32]) -> u32 {
+    match xs {
+        [x0, x1, x2, x3, x4, x5, x6, x7] =>
+            arith_spec(*x0, *x1, *x2, *x3, *x4, *x5, *x6, *x7),
+        _ => {
+            eprintln!("expected 8 u32 args, got {}", xs.len());
+            std::process::exit(2);
+        }
+    }
+}
+
 // BabyBear modulus, mirrors the Lean side (TRZK.BabyBear.p = 2^31 - 2^27 + 1).
 #[cfg(field = "babybear")]
 const P: u32 = 2013265921;
