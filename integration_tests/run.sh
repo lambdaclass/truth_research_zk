@@ -108,11 +108,17 @@ FIELD="babybear"
 
 # 3. Compile harness (which #[path]s the generated file).
 echo "Compiling..."
+MATRIX_CFG=()
+if [ "$IS_MATRIX" -eq 1 ]; then
+    MATRIX_CFG=(--cfg "matrix")
+fi
 rustc -O --edition 2024 \
     --check-cfg 'cfg(arity, values("1", "2", "4", "8"))' \
     --check-cfg 'cfg(field, values("babybear"))' \
+    --check-cfg 'cfg(matrix)' \
     --cfg "arity=\"${ARITY}\"" \
     --cfg "field=\"${FIELD}\"" \
+    "${MATRIX_CFG[@]}" \
     "$SCRIPT_DIR/harness.rs" -o "$BIN"
 
 # 4. Verify.

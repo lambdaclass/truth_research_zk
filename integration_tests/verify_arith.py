@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
-"""verify_arith.py — Verify trzk-generated ArithExpr binaries.
+"""verify_arith.py — Verify trzk-generated kernels.
 
 Reads test vectors from stdin, line by line (streaming). Values are unsigned
 canonical residues in `[0, p)` for the BabyBear field (p = 2^31 - 2^27 + 1);
 expected outputs are already reduced mod p by the generator.
 
 Format per line:
-    <x0> [x1 ...] : <y0>
+    <x0> [x1 ...] : <y0> [y1 ...]
+
+The RHS may be a single value (scalar/arith ops) or multiple space-separated
+values (matrix ops, row-major order).
 
 Usage:
     cat test_vectors/arith_add0/*.txt | python3 verify_arith.py --binary ./arith_add0 --arity 1
@@ -33,29 +36,33 @@ def parse_line(line, lineno, arity):
     left, right = line.split(':', 1)
     left_parts = left.split()
     right_parts = right.split()
-    if len(left_parts) != arity or len(right_parts) != 1:
+    if len(left_parts) != arity or len(right_parts) == 0:
         print(
-            f"WARNING: line {lineno} expected {arity}:1 values, skipping: {line}",
+            f"WARNING: line {lineno} expected {arity} input values, skipping: {line}",
             file=sys.stderr,
         )
         return None
     try:
         xs = [int(x) for x in left_parts]
-        y = int(right_parts[0])
+        ys = [int(y) for y in right_parts]
     except ValueError:
         print(f"WARNING: line {lineno} non-integer, skipping: {line}", file=sys.stderr)
         return None
-    for v in (*xs, y):
+    for v in (*xs, *ys):
         if not (0 <= v < P):
             print(
                 f"WARNING: line {lineno} value {v} out of [0, {P}), skipping: {line}",
                 file=sys.stderr,
             )
             return None
-    return xs, y
+    return xs, ys
 
 
 def run_one(binary, vec, expected):
+    """Run binary with vec as args; return None on match, error description otherwise.
+
+    expected is a list of ints; binary prints space-separated values on stdout.
+    """
     args = [binary] + [str(x) for x in vec]
     result = subprocess.run(args, capture_output=True, text=True)
     if result.returncode != 0:
@@ -64,11 +71,11 @@ def run_one(binary, vec, expected):
             msg += f"; stderr: {result.stderr.strip()}"
         return msg
     try:
-        output = int(result.stdout.strip())
+        outputs = [int(v) for v in result.stdout.strip().split()]
     except ValueError:
         return f"could not parse output: {result.stdout.strip()}"
-    if output != expected:
-        return output
+    if outputs != expected:
+        return outputs
     return None
 
 
@@ -138,13 +145,14 @@ def main():
                 stats["passed"] += 1
                 continue
             stats["failed"] += 1
+            exp_str = expected[0] if len(expected) == 1 else expected
             if fuzz:
                 print(f"\n  FUZZ FAIL test {idx}:")
                 print(f"    input    = {vec}")
-                print(f"    expected = {expected}")
+                print(f"    expected = {exp_str}")
                 print(f"    actual   = {result}")
                 sys.exit(1)
-            print(f"  FAIL test {idx}: input={vec}, expected={expected}, got={result}")
+            print(f"  FAIL test {idx}: input={vec}, expected={exp_str}, got={result}")
     except KeyboardInterrupt:
         stats["interrupted"] = True
 

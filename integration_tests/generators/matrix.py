@@ -32,24 +32,17 @@ def matmul(a, b, m, k, n):
 
 
 def reference(op: str, xs: list[int]):
-    """Return (input_list_for_binary, y)."""
+    """Return (inputs, outputs) where outputs is the full row-major result."""
     if op == "matrix_matmul":
-        # 2x2 matmul; cell (1, 1) = A[1][0]*B[0][1] + A[1][1]*B[1][1].
         assert len(xs) == 8
-        out = matmul(xs[:4], xs[4:], 2, 2, 2)
-        return xs, out[1 * 2 + 1]
+        return xs, matmul(xs[:4], xs[4:], 2, 2, 2)
     if op == "matrix_matmul_const":
-        # 2x2 A times constant 2x2 identity; cell (0, 1).
         assert len(xs) == 4
-        identity = [1, 0, 0, 1]
-        out = matmul(xs, identity, 2, 2, 2)
-        return xs, out[0 * 2 + 1]
+        return xs, matmul(xs, [1, 0, 0, 1], 2, 2, 2)
     if op == "matrix_transpose_matmul":
-        # transpose(transpose(A)) · B with 2x2 inputs; cell (0, 1).
-        # The matrix rule collapses t(t(A)) → A, so this is just A · B.
+        # transpose(transpose(A)) · B; rule collapses to plain A · B.
         assert len(xs) == 8
-        out = matmul(xs[:4], xs[4:], 2, 2, 2)
-        return xs, out[0 * 2 + 1]
+        return xs, matmul(xs[:4], xs[4:], 2, 2, 2)
     raise ValueError(f"unknown op: {op}")
 
 
@@ -71,8 +64,9 @@ def main() -> int:
     try:
         for _ in it:
             xs = [random.randint(0, P - 1) for _ in range(arity)]
-            xs_for_bin, y = reference(args.op, xs)
-            print(" ".join(str(v) for v in xs_for_bin) + " : " + str(y), flush=True)
+            xs_for_bin, ys = reference(args.op, xs)
+            rhs = " ".join(str(v) for v in ys)
+            print(" ".join(str(v) for v in xs_for_bin) + " : " + rhs, flush=True)
     except BrokenPipeError:
         pass
     return 0
