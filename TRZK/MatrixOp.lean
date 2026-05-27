@@ -7,12 +7,19 @@ namespace TRZK
 
 /-- E-graph node analogue of `MatrixExpr`. Children are `EClassId`s; shapes
     and dense constants are carried by-value so they participate in node
-    identity (hashcons key). -/
+    identity (hashcons key).
+
+    `ntt` / `intt` carry the size `n` and root of unity `ω` by value; the
+    rewrite engine matches by op-equality, so two NTTs with different
+    `(n, ω)` are distinct nodes and the round-trip rule only fires on
+    matching parameters. -/
 inductive MatrixOp where
   | const_matrix : MatrixShape → List (BabyBear .canonical) → MatrixOp
   | var_matrix   : Nat → MatrixShape → MatrixOp
   | matmul       : EClassId → EClassId → MatrixOp
   | transpose    : EClassId → MatrixOp
+  | ntt          : Nat → BabyBear .canonical → EClassId → MatrixOp
+  | intt         : Nat → BabyBear .canonical → EClassId → MatrixOp
   deriving Repr, Inhabited, DecidableEq
 
 instance : BEq MatrixOp where
@@ -24,6 +31,8 @@ instance : Hashable MatrixOp where
     | .var_matrix i s    => mixHash 2 (mixHash (hash i) (hash s))
     | .matmul l r        => mixHash 3 (mixHash (hash l) (hash r))
     | .transpose c       => mixHash 4 (hash c)
+    | .ntt n ω c         => mixHash 5 (mixHash (hash n) (mixHash (hash ω) (hash c)))
+    | .intt n ω c        => mixHash 6 (mixHash (hash n) (mixHash (hash ω) (hash c)))
 
 instance : LawfulBEq MatrixOp where
   eq_of_beq {a b} h := by simp [BEq.beq] at h; exact h
@@ -35,12 +44,16 @@ instance : LawfulHashable MatrixOp where
 
 /-- Per-op flat local cost. Placeholder until the field-egraph cost oracle
     lands. Leaves cost zero; `transpose` is the cheap structural op;
-    `matmul` is the only contraction and dominates. -/
+    `matmul` and `ntt`/`intt` are the contraction-class ops. The naive NTT
+    at size `n` is `n²` muls + `n²` adds; the cost here is a coarse
+    quadratic-in-`n` proxy so the extractor distinguishes sizes. -/
 def MatrixOp.localCost : MatrixOp → Nat
   | .const_matrix _ _ => 0
   | .var_matrix _ _   => 0
   | .transpose _      => 1
   | .matmul _ _       => 64
+  | .ntt n _ _        => n * n
+  | .intt n _ _       => n * n
 
 instance : NodeOps MatrixOp where
   children
@@ -48,15 +61,21 @@ instance : NodeOps MatrixOp where
     | .var_matrix _ _   => []
     | .matmul l r       => [l, r]
     | .transpose c      => [c]
+    | .ntt _ _ c        => [c]
+    | .intt _ _ c       => [c]
   mapChildren f
     | .const_matrix s es => .const_matrix s es
     | .var_matrix i s    => .var_matrix i s
     | .matmul l r        => .matmul (f l) (f r)
     | .transpose c       => .transpose (f c)
+    | .ntt n ω c         => .ntt n ω (f c)
+    | .intt n ω c        => .intt n ω (f c)
   replaceChildren op cs :=
     match op, cs with
     | .matmul _ _,    [l, r] => .matmul l r
     | .transpose _,   [c]    => .transpose c
+    | .ntt n ω _,     [c]    => .ntt n ω c
+    | .intt n ω _,    [c]    => .intt n ω c
     | op, _ => op
   localCost := MatrixOp.localCost
   mapChildren_children f op := by cases op <;> simp
@@ -73,6 +92,14 @@ instance : NodeOps MatrixOp where
       simp at hlen
       match ids, hlen with
       | [_], _ => simp
+    | ntt _ _ _        =>
+      simp at hlen
+      match ids, hlen with
+      | [_], _ => simp
+    | intt _ _ _       =>
+      simp at hlen
+      match ids, hlen with
+      | [_], _ => simp
   replaceChildren_sameShape op ids hlen := by
     cases op with
     | const_matrix _ _ => simp at hlen; simp
@@ -85,6 +112,14 @@ instance : NodeOps MatrixOp where
       simp at hlen
       match ids, hlen with
       | [_], _ => simp
+    | ntt _ _ _        =>
+      simp at hlen
+      match ids, hlen with
+      | [_], _ => simp
+    | intt _ _ _       =>
+      simp at hlen
+      match ids, hlen with
+      | [_], _ => simp
 
 instance : Extractable MatrixOp MatrixExpr where
   reconstruct op childExprs :=
@@ -93,6 +128,8 @@ instance : Extractable MatrixOp MatrixExpr where
     | .var_matrix i s,    []     => some (.var_matrix i s)
     | .matmul _ _,        [l, r] => some (.matmul l r)
     | .transpose _,       [c]    => some (.transpose c)
+    | .ntt n ω _,         [c]    => some (.ntt n ω c)
+    | .intt n ω _,        [c]    => some (.intt n ω c)
     | _, _                       => none
 
 end TRZK
