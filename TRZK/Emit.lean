@@ -127,4 +127,17 @@ def emitFunction (name : String) (arity : Nat) (e : ArithExpr) : String :=
   let body := emitExpr e
   s!"{emitHelpers}\npub fn {name}({args}) -> u32 \{ {body} }"
 
+/-- Emit a Rust function returning all `m * n` output cells as `[u32; N]`.
+    Each element of `cells` is `(optimized_expr, pre_optimization_arity)`;
+    all cells must share the same arity (they come from the same matrix). -/
+def emitMatrixFunction (name : String) (arity : Nat) (cells : List ArithExpr) : String :=
+  let allUsed := cells.foldl (fun acc e => (e.usedVars arity).zipWith (· || ·) acc)
+                              (Array.replicate arity false)
+  let params := (List.range arity).map fun i =>
+    if allUsed.getD i false then s!"x{i}: u32" else s!"_x{i}: u32"
+  let args    := String.intercalate ", " params
+  let n       := cells.length
+  let elems   := String.intercalate ", " (cells.map emitExpr)
+  s!"{emitHelpers}\npub fn {name}({args}) -> [u32; {n}] \{ [{elems}] }"
+
 end TRZK

@@ -6,7 +6,7 @@ Emits `x0 [x1 ...] : y` per line, where every value is a canonical residue in
 spec being exercised. Unseeded by default (the checked-in vectors are frozen
 artifacts).
 
-    ./arith.py --op add0 [-n COUNT]
+    ./arith.py --op arith_add0 [-n COUNT]
 """
 
 import argparse
@@ -17,41 +17,41 @@ import sys
 # BabyBear prime p = 2^31 - 2^27 + 1.
 P = 2**31 - 2**27 + 1
 
-# Arity per op.
+# Arity per op. Keys are the full op identifiers as accepted by run.sh.
 ARITY = {
-    "add0": 1,
-    "mul": 2,
-    "mul_chain": 4,
-    "mul0": 1,
-    "sub": 2,
-    "neg": 1,
-    "add_neg": 1,
+    "arith_add0": 1,
+    "arith_mul": 2,
+    "arith_mul_chain": 4,
+    "arith_mul0": 1,
+    "arith_sub": 2,
+    "arith_neg": 1,
+    "arith_add_neg": 1,
 }
 
 
 def reference(op: str, xs: list[int]) -> int:
-    if op == "add0":
+    if op == "arith_add0":
         # arith_spec_add0: y = x0 + 0 = x0 (mod p).
         return xs[0] % P
-    if op == "mul":
+    if op == "arith_mul":
         # arith_spec_mul: y = (x0 * 1) * x1 → x0 * x1 (mod p).
         return (xs[0] * xs[1]) % P
-    if op == "mul_chain":
+    if op == "arith_mul_chain":
         # arith_spec_mul_chain: y = x0 * x1 * x2 * x3 (mod p). The optimizer
         # selects the Montgomery realisation internally; the function-boundary
         # contract is still canonical residues in / canonical residue out.
         return (xs[0] * xs[1] * xs[2] * xs[3]) % P
-    if op == "mul0":
+    if op == "arith_mul0":
         # arith_spec_mul0: y = x0 * 0 = 0. Optimizer eliminates x0; arity 1
         # preserved.
         return 0
-    if op == "sub":
+    if op == "arith_sub":
         # arith_spec_sub: y = x0 - x1 (mod p).
         return (xs[0] - xs[1]) % P
-    if op == "neg":
+    if op == "arith_neg":
         # arith_spec_neg: y = -x0 (mod p).
         return (-xs[0]) % P
-    if op == "add_neg":
+    if op == "arith_add_neg":
         # arith_spec_add_neg: y = x0 + (-x0) = 0.
         return 0
     raise ValueError(f"unknown op: {op}")
