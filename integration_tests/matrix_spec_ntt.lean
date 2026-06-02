@@ -7,13 +7,14 @@ open TRZK (MatrixExpr BabyBear)
 -- Multiplicative generator of (Z/p)* for BabyBear; ω₈ = g^((p-1)/8) is a
 -- primitive 8th root of unity. Kept inline so the spec is self-contained
 -- and the choice of generator is local to this op.
-private partial def bbPow (a : BabyBear .canonical) (k : Nat) :
+private def bbPow (a : BabyBear .canonical) (k : Nat) :
     BabyBear .canonical :=
   if k = 0 then ⟨1⟩
   else
     let half := bbPow a (k / 2)
     let sq := half * half
     if k % 2 = 0 then sq else sq * a
+  termination_by k
 
 private def gGen : BabyBear .canonical := ⟨31⟩
 

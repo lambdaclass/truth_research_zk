@@ -36,12 +36,13 @@ private def gGen : BabyBear .canonical := ⟨31⟩
 /-- Fast exponentiation in `BabyBear .canonical`: square-and-multiply on
     the binary representation of `k`. Required for the `(p-1)/n` exponents
     used to derive primitive roots, which exceed 2³⁰ for small `n`. -/
-private partial def bbPow (a : BabyBear .canonical) (k : Nat) : BabyBear .canonical :=
+private def bbPow (a : BabyBear .canonical) (k : Nat) : BabyBear .canonical :=
   if k = 0 then ⟨1⟩
   else
     let half := bbPow a (k / 2)
     let sq := half * half
     if k % 2 = 0 then sq else sq * a
+  termination_by k
 
 /-- Primitive `n`-th root of unity: `g^((p-1)/n) mod p`. Requires `n ∣ (p-1)`;
     callers in this file pick `n` a power of two with `n ≤ 2^27`. -/
