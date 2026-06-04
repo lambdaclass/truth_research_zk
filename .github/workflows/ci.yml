@@ -30,8 +30,201 @@ jobs:
       # `lake build` already elaborates them and any failure breaks the build.
       # `lint: false` because we don't have a lint driver. Re-enable once we
       # plug in a Mathlib-style linter.
-      - uses: leanprover/lean-action@v1
+      - uses: leanprover/lean-action@38fbc41a8c28c4cbaec22d7f7de508ec2e7c0dd9 # v1.5.0
         with:
           build: true
           test: false
           lint: false
+
+  integration:
+    name: ${{ matrix.op }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        op:
+          - arith_add_neg
+          - arith_add0
+          - arith_mul
+          - arith_mul_chain
+          - arith_mul0
+          - arith_neg
+          - arith_sub
+          - matrix_matmul
+          - matrix_matmul_const
+          - matrix_transpose_matmul
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # build: false — run.sh drives `lake build` itself.
+      - uses: leanprover/lean-action@38fbc41a8c28c4cbaec22d7f7de508ec2e7c0dd9 # v1.5.0
+        with:
+          auto-config: false
+          build: false
+          use-mathlib-cache: true
+
+      - name: Crafted vectors
+        run: bash integration_tests/run.sh --op ${{ matrix.op }}
+
+      - name: Fuzz (100k)
+        run: bash integration_tests/run.sh --op ${{ matrix.op }} --fuzz -n 100000
+
+  # AI review runs only on PRs, after build + integration pass. prep rebuilds
+  # (CI permits warnings/sorries, which the reviewer needs to see) and assembles
+  # the prompt; the reviewers fan out from it.
+  prep:
+    if: github.event_name == 'pull_request'
+    needs: [build, integration]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: read
+    outputs:
+      review_prompt: ${{ steps.assemble.outputs.review_prompt }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 50
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - uses: leanprover/lean-action@38fbc41a8c28c4cbaec22d7f7de508ec2e7c0dd9 # v1.5.0
+        with:
+          auto-config: false
+          build: false
+          use-mathlib-cache: true
+
+      - name: Gather PR context
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          gh pr view "$PR_NUMBER" --repo "$REPO" --json title,body,closingIssuesReferences \
+            --jq '"# " + .title + "\n\n" + (.body // "(no description)")' > /tmp/pr_body.txt
+
+          : > /tmp/issues.txt
+          for n in $(gh pr view "$PR_NUMBER" --repo "$REPO" --json closingIssuesReferences \
+                       --jq '.closingIssuesReferences[].number'); do
+            gh issue view "$n" --repo "$REPO" --json number,title,body \
+              --jq '"## #" + (.number|tostring) + " " + .title + "\n" + (.body // "")' >> /tmp/issues.txt
+            echo >> /tmp/issues.txt
+          done
+
+          git fetch --depth 50 origin "$BASE_SHA" 2>/dev/null || true
+          git log --reverse --stat "${BASE_SHA}..${HEAD_SHA}" > /tmp/commits.txt 2>/dev/null || \
+            git log --reverse --stat "$HEAD_SHA" -n 20 > /tmp/commits.txt
+
+      - name: Build and collect diagnostics
+        id: build
+        run: |
+          set +e
+          lake build 2>&1 | tee /tmp/build.log
+          echo "status=$?" >> "$GITHUB_OUTPUT"
+          set -e
+          # source scan backstops the build log, which only warns on reached decls
+          grep -nE "declaration uses 'sorry'|sorry|admit" /tmp/build.log > /tmp/sorries.log || true
+          grep -rnE "\bsorry\b|\badmit\b" --include="*.lean" TRZK Tests Compile.lean 2>/dev/null > /tmp/src_sorries.log || true
+
+      - name: Assemble review prompt
+        id: assemble
+        env:
+          BUILD_STATUS: ${{ steps.build.outputs.status }}
+        run: |
+          {
+            if [ -f ".github/prompts/ai-review.md" ]; then
+              cat .github/prompts/ai-review.md
+            fi
+            echo
+            echo "## Build diagnostics (from CI, before your review)"
+            if [ "$BUILD_STATUS" = "0" ]; then
+              echo "- \`lake build\`: PASSED."
+            else
+              echo "- \`lake build\`: FAILED (exit $BUILD_STATUS). Errors below — treat a broken build as a blocking finding."
+            fi
+            if grep -qiE "error|warning" /tmp/build.log; then
+              echo
+              echo "Build warnings/errors:"
+              echo '```'
+              grep -iE "error|warning" /tmp/build.log | head -100
+              echo '```'
+            fi
+            if [ -s /tmp/sorries.log ] || [ -s /tmp/src_sorries.log ]; then
+              echo
+              echo "Incomplete proofs (\`sorry\`/\`admit\`) detected — flag any that this PR introduces:"
+              echo '```'
+              cat /tmp/sorries.log /tmp/src_sorries.log 2>/dev/null | sort -u | head -50
+              echo '```'
+            fi
+            echo
+            echo "These diagnostics are CI-provided facts; you do not need to re-run the build to confirm them, but you may build specific files to investigate further."
+
+            echo
+            echo "## PR description (stated intent)"
+            echo
+            cat /tmp/pr_body.txt
+            if [ -s /tmp/issues.txt ]; then
+              echo
+              echo "## Issues this PR closes"
+              echo
+              cat /tmp/issues.txt
+            fi
+            echo
+            echo "## Commits since base (title, body, diffstat)"
+            echo '```'
+            head -300 /tmp/commits.txt
+            echo '```'
+          } > /tmp/review_prompt.txt
+
+          {
+            echo "review_prompt<<REVIEW_PROMPT_EOF"
+            cat /tmp/review_prompt.txt
+            echo "REVIEW_PROMPT_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+  claude:
+    needs: prep
+    uses: lambdaclass/actions/.github/workflows/ai-review-claude.yml@v1
+    secrets:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    with:
+      model: 'sonnet'
+      max_turns: 40
+      allowed_tools: >-
+        mcp__github_inline_comment__create_inline_comment,
+        Read,Glob,Grep,
+        Bash(gh pr view:*),
+        Bash(gh pr diff:*),
+        Bash(gh pr comment:*),
+        Bash(git diff:*),
+        Bash(git show:*),
+        Bash(git log:*),
+        Bash(lake build:*),
+        Bash(lake exe:*),
+        Bash(./integration_tests/run.sh:*)
+      prompt: ${{ needs.prep.outputs.review_prompt }}
+
+  codex:
+    needs: prep
+    uses: lambdaclass/actions/.github/workflows/ai-review-codex.yml@v1
+    secrets:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    with:
+      safety_strategy: 'drop-sudo'
+      prompt: ${{ needs.prep.outputs.review_prompt }}
+
+  kimi:
+    needs: prep
+    uses: lambdaclass/actions/.github/workflows/ai-review-kimi.yml@v1
+    secrets:
+      KIMI_API_KEY: ${{ secrets.KIMI_API_KEY }}
+    with:
+      # Drop these once lambdaclass/actions#8 (agentic Kimi) lands.
+      max_diff_lines: 6000
+      max_tokens: 4096
+      temperature: 0.3
+      prompt: ${{ needs.prep.outputs.review_prompt }}
