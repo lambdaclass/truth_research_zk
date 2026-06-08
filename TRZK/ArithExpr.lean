@@ -22,7 +22,7 @@ inductive ArithExpr where
   | montMul  : ArithExpr → ArithExpr → ArithExpr
   | toMont   : ArithExpr → ArithExpr
   | fromMont : ArithExpr → ArithExpr
-  deriving Repr, BEq, Inhabited, DecidableEq
+  deriving Repr, BEq, Hashable, Inhabited, DecidableEq
 
 /-- Number of AST nodes. -/
 def ArithExpr.size : ArithExpr → Nat

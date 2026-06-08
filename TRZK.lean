@@ -2,6 +2,7 @@ import TRZK.ArithExpr
 import TRZK.ArithOp
 import TRZK.Rule
 import TRZK.Pipeline
+import TRZK.Program
 import TRZK.Emit
 import TRZK.MatrixExpr
 import TRZK.MatrixOp
