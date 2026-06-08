@@ -28,6 +28,7 @@ jobs:
           - matrix_matmul
           - matrix_matmul_const
           - matrix_transpose_matmul
+          - matrix_ntt
 
     steps:
       - uses: actions/checkout@v4

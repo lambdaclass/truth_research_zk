@@ -4,3 +4,4 @@ import Tests.Emit
 import Tests.MatrixExpr
 import Tests.MatrixPipeline
 import Tests.MatrixLower
+import Tests.MatrixNtt

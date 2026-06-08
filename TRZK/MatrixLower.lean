@@ -2,6 +2,53 @@ import TRZK.MatrixExpr
 
 namespace TRZK
 
+/-- Fast exponentiation in `BabyBear .canonical` (square-and-multiply).
+    Used at materialize time to precompute twiddle constants `ω^k mod p`
+    baked into the lowered scalar program. Linear recursion would overflow
+    the stack for the exponents naive NTT reaches at `n = 256` (`j·k` up
+    to 65 025). -/
+private partial def BabyBear.powNat (a : BabyBear .canonical) (k : Nat) :
+    BabyBear .canonical :=
+  if k = 0 then ⟨1⟩
+  else
+    let half := BabyBear.powNat a (k / 2)
+    let sq := half * half
+    if k % 2 = 0 then sq else sq * a
+
+/-- Twiddle row `[ω^(j·k) | k < n]` for fixed `j`. -/
+private def twiddleRow (n : Nat) (ω : BabyBear .canonical) (j : Nat) :
+    Array (BabyBear .canonical) :=
+  (List.range n).toArray.map fun k => BabyBear.powNat ω (j * k)
+
+/-- Per-cell scalar expression for `(ntt n ω x)[0][k]` given the materialized
+    grid `gx` of `x` (a 1×n row vector). Builds the dot-product
+    `Σⱼ gx[0][j] · ω^(j·k)` as an `ArithExpr.add`-folded chain with
+    twiddles baked as `.const` leaves. -/
+private def nttCell (n : Nat) (ω : BabyBear .canonical)
+    (gx : Array (Array ArithExpr)) (k : Nat) : ArithExpr :=
+  let row := gx[0]!
+  (List.range n).foldl
+    (init := .const 0)
+    (fun acc j =>
+      let t : BabyBear .canonical := BabyBear.powNat ω (j * k)
+      .add acc (.mul row[j]! (.const t)))
+
+/-- Per-cell scalar expression for `(intt n ω x)[0][k]` given the materialized
+    grid `gx`. iNTT bakes `(1/n) · ω^(-j·k)` into each twiddle, so a single
+    constant per `(j, k)` pair carries both the inverse-root power and the
+    `n⁻¹` normalisation. -/
+private def inttCell (n : Nat) (ω : BabyBear .canonical)
+    (gx : Array (Array ArithExpr)) (k : Nat) : ArithExpr :=
+  let row := gx[0]!
+  let ωInv : BabyBear .canonical := ⟨ω.val⁻¹⟩
+  let nInv : BabyBear .canonical := ⟨(n : ZMod BabyBear.p)⁻¹⟩
+  (List.range n).foldl
+    (init := .const 0)
+    (fun acc j =>
+      let tBase : BabyBear .canonical := BabyBear.powNat ωInv (j * k)
+      let t : BabyBear .canonical := nInv * tBase
+      .add acc (.mul row[j]! (.const t)))
+
 /-- Dense row-major grid of scalar expressions. `rows.size = m`, every row
     has `n` entries; well-formedness is enforced by `materialize`. -/
 abbrev MatrixGrid := Array (Array ArithExpr)
@@ -63,6 +110,18 @@ partial def materializeAux : MatrixExpr → LowerState →
       let rows := (List.range n).toArray.map fun r =>
         (List.range m).toArray.map fun c => ga[c]![r]!
       some (rows, st1)
+  | .ntt n ω a, st => do
+      let (ga, st1) ← materializeAux a st
+      guard (ga.size = 1)
+      guard (ga[0]!.size = n)
+      let row := (List.range n).toArray.map fun k => nttCell n ω ga k
+      some (#[row], st1)
+  | .intt n ω a, st => do
+      let (ga, st1) ← materializeAux a st
+      guard (ga.size = 1)
+      guard (ga[0]!.size = n)
+      let row := (List.range n).toArray.map fun k => inttCell n ω ga k
+      some (#[row], st1)
 
 /-- Materialize a matrix expression into its dense grid of scalar
     expressions. Returns `none` for shape-inconsistent inputs. -/

@@ -14,8 +14,29 @@ def transposeTranspose : RewriteRule MatrixOp where
   lhs := .node (.transpose 0) [.node (.transpose 0) [.patVar 0]]
   rhs := .patVar 0
 
-/-- Default matrix rule set: double-transpose elimination only. -/
+/-- iNTT-NTT round-trip at fixed `(n, ω)`: `intt n ω (ntt n ω x) → x`. The
+    pattern matches by op-equality, so distinct `(n, ω)` parameters
+    produce distinct nodes and the rule only fires on a matching pair. -/
+def inttNttRoundTrip (n : Nat) (ω : BabyBear .canonical) : RewriteRule MatrixOp where
+  name := s!"intt_ntt_round_trip_{n}"
+  lhs := .node (.intt n ω 0) [.node (.ntt n ω 0) [.patVar 0]]
+  rhs := .patVar 0
+
+/-- NTT-iNTT round-trip at fixed `(n, ω)`: `ntt n ω (intt n ω x) → x`. -/
+def nttInttRoundTrip (n : Nat) (ω : BabyBear .canonical) : RewriteRule MatrixOp where
+  name := s!"ntt_intt_round_trip_{n}"
+  lhs := .node (.ntt n ω 0) [.node (.intt n ω 0) [.patVar 0]]
+  rhs := .patVar 0
+
+/-- Default matrix rule set: structural rules that are always-on regardless
+    of NTT parameters. NTT round-trip rules are size-and-root specific and
+    callers add them via `MatrixRuleSet.withNttRoundTrip`. -/
 def MatrixRuleSet.default : MatrixRuleSet := [transposeTranspose]
+
+/-- Extend a rule set with NTT round-trip rules for a specific `(n, ω)`. -/
+def MatrixRuleSet.withNttRoundTrip (rules : MatrixRuleSet)
+    (n : Nat) (ω : BabyBear .canonical) : MatrixRuleSet :=
+  rules ++ [inttNttRoundTrip n ω, nttInttRoundTrip n ω]
 
 /-- Recursively embed a `MatrixExpr` into an `EGraph<MatrixOp>`.
     Returns the root e-class id and the updated graph. -/
@@ -30,6 +51,12 @@ partial def embedMatrix (g : EGraph MatrixOp) :
   | .transpose a       =>
     let (ia, g1) := embedMatrix g a
     g1.add ⟨.transpose ia⟩
+  | .ntt n ω a         =>
+    let (ia, g1) := embedMatrix g a
+    g1.add ⟨.ntt n ω ia⟩
+  | .intt n ω a        =>
+    let (ia, g1) := embedMatrix g a
+    g1.add ⟨.intt n ω ia⟩
 
 namespace MatrixPipeline
 

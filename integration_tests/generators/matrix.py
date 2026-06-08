@@ -31,6 +31,22 @@ def matmul(a, b, m, k, n):
     return out
 
 
+def ntt_omega(n: int) -> int:
+    """Primitive n-th root of unity in BabyBear: `g^((p-1)/n) mod p` with
+    `g = 31` (a multiplicative generator). Must match the value chosen in
+    the corresponding `matrix_spec_*.lean` file."""
+    return pow(31, (P - 1) // n, P)
+
+
+def ntt(xs: list[int], n: int) -> list[int]:
+    """Naive O(n²) DFT: `y[k] = Σⱼ x[j] · ω^(j·k) mod p`."""
+    omega = ntt_omega(n)
+    return [
+        sum(xs[j] * pow(omega, j * k, P) for j in range(n)) % P
+        for k in range(n)
+    ]
+
+
 def reference(op: str, xs: list[int]):
     """Return (inputs, outputs) where outputs is the full row-major result."""
     if op == "matrix_matmul":
@@ -43,6 +59,9 @@ def reference(op: str, xs: list[int]):
         # transpose(transpose(A)) · B; rule collapses to plain A · B.
         assert len(xs) == 8
         return xs, matmul(xs[:4], xs[4:], 2, 2, 2)
+    if op == "matrix_ntt":
+        assert len(xs) == 8
+        return xs, ntt(xs, 8)
     raise ValueError(f"unknown op: {op}")
 
 
@@ -50,6 +69,7 @@ ARITY = {
     "matrix_matmul": 8,
     "matrix_matmul_const": 4,
     "matrix_transpose_matmul": 8,
+    "matrix_ntt": 8,
 }
 
 

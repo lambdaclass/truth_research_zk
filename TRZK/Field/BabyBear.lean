@@ -108,6 +108,37 @@ def fromMont (a : BabyBear .montgomery) : BabyBear .canonical :=
 def montMul (a b : BabyBear .montgomery) : BabyBear .montgomery :=
   ⟨a.val * b.val * R⁻¹⟩
 
+/-- Boolean check for NTT-domain sizes on BabyBear: `n = 2^k` for some
+    `k ≤ 27`. Used by the smart constructor. The lemma `nttSize_iff` proves
+    this is equivalent to "`n` is a power of two and `n ∣ p − 1`". -/
+def isNttSize (n : Nat) : Bool :=
+  (List.range 28).any (fun k => n = 2 ^ k)
+
+/-- For BabyBear, `p − 1 = 2³¹ − 2²⁷ = 2²⁷ · 15`. The 2-adic valuation of
+    `p − 1` is 27, so a power of two `n = 2ᵏ` divides `p − 1` iff `k ≤ 27`.
+    `isNttSize n ↔ n.isPowerOfTwo ∧ n ∣ p − 1`. -/
+theorem nttSize_iff (n : Nat) :
+    BabyBear.isNttSize n = true ↔ n.isPowerOfTwo ∧ n ∣ (BabyBear.p - 1) := by
+  have hp_eq : BabyBear.p - 1 = 2 ^ 27 * 15 := by decide
+  constructor
+  · intro h
+    simp [BabyBear.isNttSize, List.any_eq_true] at h
+    obtain ⟨k, hk_lt, heq⟩ := h
+    refine ⟨⟨k, heq⟩, ?_⟩
+    rw [heq, hp_eq]
+    exact Dvd.dvd.mul_right
+      ((Nat.pow_dvd_pow_iff_le_right (by decide : (1 : Nat) < 2)).mpr
+        (Nat.le_of_lt_succ hk_lt)) 15
+  · rintro ⟨⟨k, hk⟩, hdvd⟩
+    -- From `2^k ∣ p − 1 = 2^27 · 15` and `gcd(2, 15) = 1`, deduce `k ≤ 27`.
+    rw [hk, hp_eq] at hdvd
+    have hcop : Nat.Coprime (2 ^ k) 15 := (by decide : Nat.Coprime 2 15).pow_left k
+    have h2k_dvd : 2 ^ k ∣ 2 ^ 27 := Nat.Coprime.dvd_of_dvd_mul_right hcop hdvd
+    have hk_le : k ≤ 27 :=
+      (Nat.pow_dvd_pow_iff_le_right (by decide : (1 : Nat) < 2)).mp h2k_dvd
+    simp [BabyBear.isNttSize, List.any_eq_true]
+    exact ⟨k, Nat.lt_succ_of_le hk_le, hk⟩
+
 end BabyBear
 
 end TRZK
