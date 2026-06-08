@@ -7,13 +7,14 @@ namespace TRZK
     baked into the lowered scalar program. Linear recursion would overflow
     the stack for the exponents naive NTT reaches at `n = 256` (`j·k` up
     to 65 025). -/
-private partial def BabyBear.powNat (a : BabyBear .canonical) (k : Nat) :
+def BabyBear.powNat (a : BabyBear .canonical) (k : Nat) :
     BabyBear .canonical :=
   if k = 0 then ⟨1⟩
   else
     let half := BabyBear.powNat a (k / 2)
     let sq := half * half
     if k % 2 = 0 then sq else sq * a
+  termination_by k
 
 /-- Twiddle row `[ω^(j·k) | k < n]` for fixed `j`. -/
 private def twiddleRow (n : Nat) (ω : BabyBear .canonical) (j : Nat) :

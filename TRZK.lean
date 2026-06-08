@@ -3,8 +3,10 @@ import TRZK.ArithOp
 import TRZK.Rule
 import TRZK.Pipeline
 import TRZK.Program
+import TRZK.LoopExpr
 import TRZK.Emit
 import TRZK.MatrixExpr
 import TRZK.MatrixOp
 import TRZK.MatrixPipeline
 import TRZK.MatrixLower
+import TRZK.MatrixLowerLoop
