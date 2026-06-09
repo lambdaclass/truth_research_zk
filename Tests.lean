@@ -1,7 +1,9 @@
 import Tests.ArithExpr
 import Tests.Pipeline
 import Tests.Emit
+import Tests.LoopExpr
 import Tests.MatrixExpr
 import Tests.MatrixPipeline
 import Tests.MatrixLower
+import Tests.MatrixLowerLoop
 import Tests.MatrixNtt

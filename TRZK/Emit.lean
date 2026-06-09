@@ -1,5 +1,6 @@
 import TRZK.ArithExpr
 import TRZK.Program
+import TRZK.LoopExpr
 
 namespace TRZK
 
@@ -166,5 +167,107 @@ def emitProgram (p : Program) : String :=
   let helpers := p.functions.map (emitFunction false ·)
   let entry := emitFunction true p.entry
   String.intercalate "\n" (emitHelpers :: tables ++ helpers ++ [entry])
+
+/-! ## Loop IR emission
+
+    `emitLoopProgram` is the matrix-path emitter: a tree-walk over `LoopExpr`
+    (umbrella D1) producing a Rust function over a flat `mem` buffer, with the
+    same positional-`x`-in / `[u32; N]`-out ABI the scalar path uses. -/
+
+/-- Render an affine `IdxExpr` as a Rust `usize` expression. Loop variable `v`
+    emits as `i{v}` (the loop counter the enclosing `for'` introduced). Rust's
+    `+`/`*` precedence matches the affine algebra, so sums need no parens; only
+    a scalar multiple of a sum is wrapped. -/
+def emitIdx : IdxExpr → String
+  | .const n          => s!"{n}"
+  | .var v            => s!"i{v}"
+  | .affine base s v  => if base == 0 then s!"{s} * i{v}" else s!"{base} + {s} * i{v}"
+  | .add a b          => s!"{emitIdx a} + {emitIdx b}"
+  | .mul c (.add a b) => s!"{c} * ({emitIdx (.add a b)})"
+  | .mul c e          => s!"{c} * {emitIdx e}"
+
+/-- Render a gather lane `(buffer, index)` as the Rust array read it stands
+    for: `mem[idx]` or `TABLE[idx]`. -/
+def emitGather : BufRef × IdxExpr → String
+  | (.mem,        idx) => s!"mem[{emitIdx idx}]"
+  | (.table name, idx) => s!"{name}[{emitIdx idx}]"
+
+/-- Emit a `compute` kernel, resolving each `.var j` to gather lane `j`. The
+    field ops reuse the canonical-domain helpers (`bb_add`, `bb_mul`, …), so a
+    kernel built from `ArithExpr` emits identically to `emitExpr` except that
+    its variables read through gathers. Out-of-range lanes (a malformed
+    lowering) fall back to `0u32`. -/
+def emitKernel (gathers : List (BufRef × IdxExpr)) : ArithExpr → String
+  | .const n     => s!"{n.toNat}u32"
+  | .var i       => match gathers[i]? with
+                    | some g => emitGather g
+                    | none   => "0u32"
+  | .add a b     => s!"bb_add({emitKernel gathers a}, {emitKernel gathers b})"
+  | .sub a b     => s!"bb_sub({emitKernel gathers a}, {emitKernel gathers b})"
+  | .neg a       => s!"bb_neg({emitKernel gathers a})"
+  | .mul a b     => s!"bb_mul({emitKernel gathers a}, {emitKernel gathers b})"
+  | .montMul a b => s!"bb_mont_mul({emitKernel gathers a}, {emitKernel gathers b})"
+  | .toMont a    => s!"bb_to_mont({emitKernel gathers a})"
+  | .fromMont a  => s!"bb_from_mont({emitKernel gathers a})"
+
+/-- Tree-walk emitter over `LoopExpr` (umbrella D1), one arm per constructor:
+    - `for'` → a Rust `for i{idx} in {lo}..{hi} { … }` block, with
+      `.step_by({step})` when `step ≠ 1` (the unit-stride case stays a bare
+      range so the common output is unchanged);
+    - `seq`  → the two bodies in order;
+    - `compute` → `mem[scatter] {= | +=} kernel;` (accumulate selects `+=`);
+    - `temp` → a `let mut mem` scratch-buffer declaration scoping the body;
+    - `nop`  → nothing.
+    `indent` is the current leading whitespace; nested blocks add four spaces. -/
+partial def emitLoop (indent : String) : LoopExpr → String
+  | .for' idx lo hi step body =>
+    let inner := emitLoop (indent ++ "    ") body
+    let range := if step == 1 then s!"{lo}..{hi}" else s!"({lo}..{hi}).step_by({step})"
+    s!"{indent}for i{idx} in {range} \{\n{inner}\n{indent}}"
+  | .seq a b =>
+    s!"{emitLoop indent a}\n{emitLoop indent b}"
+  | .compute kernel gathers scatter accumulate =>
+    if accumulate then
+      s!"{indent}mem[{emitIdx scatter}] = bb_add(mem[{emitIdx scatter}], {emitKernel gathers kernel});"
+    else
+      s!"{indent}mem[{emitIdx scatter}] = {emitKernel gathers kernel};"
+  | .temp size body =>
+    let inner := emitLoop (indent ++ "    ") body
+    s!"{indent}\{\n{indent}    let mut mem: [u32; {size}] = [0u32; {size}];\n{inner}\n{indent}}"
+  | .nop => ""
+
+/-- Emit the full Rust file for a lowered matrix expression. Mirrors
+    `emitProgram`'s shape — helper preamble, twiddle `const` tables, then the
+    public entry function — but the entry body is the loop nest over `mem`.
+
+    The entry seeds `mem[0..arity)` from the positional `x` parameters, runs
+    `prog.body` (a `temp`-scoped loop nest), copies the result region
+    `mem[outBase .. outBase + outSize)` into the returned `[u32; outSize]`, and
+    returns it. The signature matches the scalar path's matrix arm, so the
+    existing Rust harness links unchanged. -/
+def emitLoopProgram (funcName : String) (prog : LoopProgram) : String :=
+  let tables := prog.tables.map emitConstTable
+  let params := String.intercalate ", "
+    ((List.range prog.arity).map fun i => s!"x{i}: u32")
+  -- The function body is itself the scratch-buffer scope, so the top-level
+  -- `temp` adds no extra brace block — its size sizes `mem`, its inner nest is
+  -- emitted at the body indent. Everything (buffer decl, input seeds, loop
+  -- nest, result copy-out) sits at one 4-space level. `other` is the defensive
+  -- path for a lowering that skipped the `temp` wrapper.
+  let ind := "    "
+  let memSize := match prog.body with | .temp size _ => size | _ => prog.memSize
+  let inner := match prog.body with | .temp _ b => b | b => b
+  let seeds := (List.range prog.arity).map fun i => s!"{ind}mem[{i}] = x{i};"
+  let lines : List String :=
+    [s!"{ind}let mut mem: [u32; {memSize}] = [0u32; {memSize}];"] ++
+    seeds ++
+    [emitLoop ind inner,
+     s!"{ind}let mut out: [u32; {prog.outSize}] = [0u32; {prog.outSize}];",
+     s!"{ind}for k in 0..{prog.outSize} \{ out[k] = mem[{prog.outBase} + k]; }",
+     s!"{ind}out"]
+  let bodyStr := String.intercalate "\n" lines
+  let entry :=
+    s!"pub fn {funcName}({params}) -> [u32; {prog.outSize}] \{\n{bodyStr}\n}"
+  String.intercalate "\n" (emitHelpers :: tables ++ [entry])
 
 end TRZK

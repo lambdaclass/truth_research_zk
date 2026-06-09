@@ -79,9 +79,9 @@ def main : IO Unit := do
     IO.FS.writeFile \"{outputPath}\" code
 "
 
-/-- Build the runner source for a matrix spec: saturate the matrix, then lower
-    every output cell to ArithExpr, run scalar saturation on each, and emit a
-    single function returning all cells as `[u32; N]`. -/
+/-- Build the runner source for a matrix spec: saturate the matrix, lower it
+    to the loop IR (`MatrixExpr.lowerLoop`), and emit a single Rust function
+    over a flat `mem` buffer returning all `m·n` cells as `[u32; N]`. -/
 def buildMatrixRunner (userCode funcName outputPath artifactsDir baseName : String) :
     String :=
   s!"import TRZK
@@ -99,34 +99,13 @@ def main : IO Unit := do
     IO.Process.exit 1
   | some mpost =>
     IO.FS.writeFile \"{artifactsDir}/{baseName}.mpost.txt\" (toString (repr mpost))
-    match mpost.materialize with
+    match mpost.lowerLoop with
     | none =>
-      IO.eprintln \"materialize returned none\"
+      IO.eprintln \"lowerLoop returned none\"
       IO.Process.exit 1
-    | some (grid, arity) =>
-      let pairs : List (Nat × Nat) :=
-        (List.range grid.size).flatMap fun r =>
-          (List.range (if grid.size > 0 then grid[0]!.size else 0)).map fun c => (r, c)
-      let mut cells : List ArithExpr := []
-      for (r, c) in pairs do
-        match mpost.lower r c with
-        | none =>
-          IO.eprintln s!\"lower returned none for cell (\{r}, \{c})\"
-          IO.Process.exit 1
-        | some (scalar, _) =>
-          match optimize RuleSet.babybearNaive scalar with
-          | none =>
-            IO.eprintln s!\"scalar optimize returned none for cell (\{r}, \{c})\"
-            IO.Process.exit 1
-          | some post =>
-            cells := cells ++ [post]
-      let params := (List.range arity).map fun i => (s!\"x\{i}\", ScalarType.u32)
-      let prog : Program := \{
-        tables := [], functions := [],
-        entry := \{ name := \"{funcName}\", params,
-                    retTy := .array .u32 cells.length, body := .cells cells }
-      }
-      let code := emitProgram prog
+    | some prog =>
+      IO.FS.writeFile \"{artifactsDir}/{baseName}.loop.txt\" (toString (repr prog.body))
+      let code := emitLoopProgram \"{funcName}\" prog
       IO.FS.writeFile \"{outputPath}\" code
 "
 
