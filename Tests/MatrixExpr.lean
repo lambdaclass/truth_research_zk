@@ -35,3 +35,16 @@ open TRZK
 #guard MatrixExpr.shape
     (.matmul (.matmul (.var_matrix 0 (2, 3)) (.var_matrix 1 (4, 5)))
              (.var_matrix 2 (5, 6))) == none
+
+-- Shape derivation: hadamard requires equal shapes; pointwise passes through.
+#guard MatrixExpr.shape
+    (.hadamard (.var_matrix 0 (2, 3)) (.var_matrix 1 (2, 3))) == some (2, 3)
+#guard MatrixExpr.shape
+    (.hadamard (.var_matrix 0 (2, 3)) (.var_matrix 1 (3, 2))) == none
+#guard MatrixExpr.shape
+    (.pointwise_scalar 3 (.var_matrix 0 (2, 3))) == some (2, 3)
+
+-- Size counts the new constructors' nodes.
+#guard MatrixExpr.size
+    (.hadamard (.var_matrix 0 (2, 2)) (.var_matrix 1 (2, 2))) == 3
+#guard MatrixExpr.size (.pointwise_scalar 3 (.var_matrix 0 (2, 2))) == 2

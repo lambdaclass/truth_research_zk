@@ -7,6 +7,7 @@ import TRZK.LoopExpr
 import TRZK.Emit
 import TRZK.MatrixExpr
 import TRZK.MatrixOp
+import TRZK.MatrixCostOracle
 import TRZK.MatrixPipeline
 import TRZK.MatrixLower
 import TRZK.MatrixLowerLoop

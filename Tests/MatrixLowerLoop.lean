@@ -1,4 +1,5 @@
 import TRZK.MatrixLowerLoop
+import TRZK.Emit
 
 open TRZK
 
@@ -79,4 +80,49 @@ private def ntt8 : MatrixExpr := .ntt 8 ⟨1⟩ (.var_matrix 0 (1, 8))
 #guard
   match (MatrixExpr.matmul (.var_matrix 0 (1, 2)) (.var_matrix 1 (2, 3))).lowerLoop with
   | some p => p.arity == 8 && p.outSize == 3   -- (1×2)·(2×3) ⇒ 1×3
+  | none => false
+
+/-! ## hadamard: one flat loop over the m·n cells (both operands and the
+    result are contiguous same-size regions), no tables. -/
+
+#guard
+  match (MatrixExpr.hadamard (.var_matrix 0 (2, 2)) (.var_matrix 1 (2, 2))).lowerLoop with
+  | some p =>
+      p.arity == 8 && p.outSize == 4 && p.tables.isEmpty &&
+      (innerOf p).usedVars.eraseDups.length == 1
+  | none => false
+
+-- Shape-mismatched hadamard lowers to none.
+#guard ((MatrixExpr.hadamard (.var_matrix 0 (2, 3)) (.var_matrix 1 (3, 2))).lowerLoop).isNone
+
+/-! ## pointwise_scalar: one flat loop, single gather, the scalar baked into
+    the kernel as a constant. -/
+
+#guard
+  match (MatrixExpr.pointwise_scalar 3 (.var_matrix 0 (2, 2))).lowerLoop with
+  | some p =>
+      p.arity == 4 && p.outSize == 4 && p.tables.isEmpty &&
+      (innerOf p).usedVars.eraseDups.length == 1
+  | none => false
+
+/-! ## End-to-end emission for the pointwise ops: the loop body is the
+    expected per-cell write into the result region. -/
+
+-- hadamard: inputs at mem[0..4) and mem[4..8), result at mem[8..12).
+#guard
+  match (MatrixExpr.hadamard (.var_matrix 0 (2, 2)) (.var_matrix 1 (2, 2))).lowerLoop with
+  | some p =>
+      let code := emitLoopProgram "arith_spec" p
+      ((code.splitOn "for i0 in 0..4 {").length == 2) &&
+      ((code.splitOn "mem[8 + 1 * i0] = bb_mul(mem[1 * i0], mem[4 + 1 * i0]);").length == 2) &&
+      ((code.splitOn "pub fn arith_spec(").length == 2)
+  | none => false
+
+-- pointwise_scalar: input at mem[0..4), result at mem[4..8), constant inline.
+#guard
+  match (MatrixExpr.pointwise_scalar 3 (.var_matrix 0 (2, 2))).lowerLoop with
+  | some p =>
+      let code := emitLoopProgram "arith_spec" p
+      ((code.splitOn "for i0 in 0..4 {").length == 2) &&
+      ((code.splitOn "mem[4 + 1 * i0] = bb_mul(mem[1 * i0], 3u32);").length == 2)
   | none => false
