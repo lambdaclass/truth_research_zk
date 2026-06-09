@@ -24,7 +24,7 @@ private def innerOf (p : LoopProgram) : LoopExpr :=
 
 #guard
   match (MatrixExpr.const_matrix (2, 2) [1, 2, 3, 4]).lowerLoop with
-  | some p => p.arity == 0 && p.outSize == 4 && innerOf p |>.usedVars |>.isEmpty
+  | some p => p.arity == 0 && p.outSize == 4 && (innerOf p).usedVars.isEmpty
   | none => false
 
 /-! ## matmul: a 3-deep loop nest (row, col, contraction) over three fresh
