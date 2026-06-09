@@ -1,34 +1,13 @@
 import TRZK.MatrixLower
+import TRZK.ArithEval
 
 open TRZK
 
 /-! Tests for the matrix-to-scalar unrolling. -/
 
-namespace TestEval
-
-/-- Tiny tree evaluator over `Nat` mod BabyBear, just for these tests.
-    Real codegen lowering lives in `TRZK.Emit`; this is structural only. -/
-private partial def eval (env : Nat → Nat) : ArithExpr → Nat
-  | .const n     => n.toNat
-  | .var i       => env i
-  | .add a b     => (eval env a + eval env b) % BabyBear.p
-  | .sub a b     =>
-      let av := eval env a
-      let bv := eval env b
-      (av + (BabyBear.p - bv % BabyBear.p)) % BabyBear.p
-  | .neg a       =>
-      let av := eval env a
-      (BabyBear.p - av % BabyBear.p) % BabyBear.p
-  | .mul a b     => (eval env a * eval env b) % BabyBear.p
-  | .montMul a b => (eval env a * eval env b) % BabyBear.p -- unused here
-  | .toMont a    => eval env a -- unused here
-  | .fromMont a  => eval env a -- unused here
-
-end TestEval
-
 /-- Lookup helper for unrolled tests. -/
-private def envOf (xs : List Nat) : Nat → Nat
-  | i => xs.toArray[i]?.getD 0
+private def envOf (xs : List Nat) : Nat → BabyBear .canonical
+  | i => BabyBear.ofNat (xs.toArray[i]?.getD 0)
 
 /-! Arity allocation. -/
 
@@ -87,7 +66,8 @@ private def envOf (xs : List Nat) : Nat → Nat
 #guard
   match (MatrixExpr.matmul (.var_matrix 0 (1, 2)) (.var_matrix 1 (2, 1))).lower 0 0 with
   | some (e, arity) =>
-      arity == 4 && TestEval.eval (envOf [3, 5, 7, 11]) e == 76
+      arity == 4 &&
+      ArithExpr.eval (envOf [3, 5, 7, 11]) e == some (.canon (BabyBear.ofNat 76))
   | _ => false
 
 -- 2x2 · 2x2 cell (1, 1) sanity:
@@ -96,7 +76,7 @@ private def envOf (xs : List Nat) : Nat → Nat
   match (MatrixExpr.matmul (.var_matrix 0 (2, 2)) (.var_matrix 1 (2, 2))).lower 1 1 with
   | some (e, arity) =>
       arity == 8 &&
-      TestEval.eval (envOf [1, 2, 3, 4, 5, 6, 7, 8]) e == 50
+      ArithExpr.eval (envOf [1, 2, 3, 4, 5, 6, 7, 8]) e == some (.canon (BabyBear.ofNat 50))
   | _ => false
 
 -- Transpose interacts: (t(A))·B with A=(2,2)=[[1,2],[3,4]], B=[[5,6],[7,8]]
@@ -104,8 +84,40 @@ private def envOf (xs : List Nat) : Nat → Nat
 #guard
   match (MatrixExpr.matmul (.transpose (.var_matrix 0 (2, 2)))
                             (.var_matrix 1 (2, 2))).lower 0 1 with
-  | some (e, _) => TestEval.eval (envOf [1, 2, 3, 4, 5, 6, 7, 8]) e == 30
+  | some (e, _) =>
+      ArithExpr.eval (envOf [1, 2, 3, 4, 5, 6, 7, 8]) e == some (.canon (BabyBear.ofNat 30))
   | _ => false
 
 -- Shape-mismatched matmul lowers to none.
 #guard ((MatrixExpr.matmul (.var_matrix 0 (2, 3)) (.var_matrix 1 (4, 5))).lower 0 0).isNone
+
+/-! Montgomery paths: the matrix layer only emits the canonical fragment, so
+    exercise `toMont`/`fromMont`/`montMul` at the `ArithExpr` level directly. -/
+
+private def emptyEnv : Nat → BabyBear .canonical := fun _ => 0
+
+-- fromMont ∘ toMont is identity on canonical values.
+#guard
+  ArithExpr.eval emptyEnv (.fromMont (.toMont (.const (BabyBear.ofNat 12345))))
+    == some (.canon (BabyBear.ofNat 12345))
+
+-- toMont ∘ fromMont recovers the same Montgomery value.
+#guard
+  ArithExpr.eval emptyEnv (.toMont (.fromMont (.toMont (.const (BabyBear.ofNat 12345)))))
+    == some (.mont (BabyBear.toMont (BabyBear.ofNat 12345)))
+
+-- montMul on Montgomery operands: (x·R) ⊛ (y·R) = (x·y)·R.
+#guard
+  ArithExpr.eval emptyEnv
+      (.montMul (.toMont (.const (BabyBear.ofNat 3))) (.toMont (.const (BabyBear.ofNat 5))))
+    == some (.mont (BabyBear.toMont (BabyBear.ofNat 15)))
+
+-- Domain mismatch: montMul on canonical operands denotes nothing.
+#guard
+  ArithExpr.eval emptyEnv (.montMul (.const (BabyBear.ofNat 3)) (.const (BabyBear.ofNat 5)))
+    == none
+
+-- Domain mismatch: linear op across representations denotes nothing.
+#guard
+  ArithExpr.eval emptyEnv (.add (.const (BabyBear.ofNat 3)) (.toMont (.const (BabyBear.ofNat 5))))
+    == none
