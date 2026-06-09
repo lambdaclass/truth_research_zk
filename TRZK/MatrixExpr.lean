@@ -5,10 +5,9 @@ namespace TRZK
 /-- 2D shape `(rows, cols)`. Concrete `Nat`s only (umbrella D7). -/
 abbrev MatrixShape := Nat × Nat
 
-/-- Matrix-layer AST. Minimal surface: enough for the matmul + transpose
-    end-to-end pipeline plus NTT/iNTT primitives. Additional ops
-    (`hadamard`, `pointwise_scalar`, `reshape`, `permute`) arrive in the
-    sub-changes whose harness exercises them.
+/-- Matrix-layer AST. Matmul, transpose, NTT/iNTT, and the pointwise ops:
+    `hadamard` is the elementwise product of two same-shape matrices;
+    `pointwise_scalar c` multiplies every entry by the field constant `c`.
 
     Constants store their dense element list in row-major order alongside
     the declared shape; well-formedness (entries.length = rows * cols) is
@@ -27,6 +26,8 @@ inductive MatrixExpr where
   | transpose    : MatrixExpr → MatrixExpr
   | ntt          : Nat → BabyBear .canonical → MatrixExpr → MatrixExpr
   | intt         : Nat → BabyBear .canonical → MatrixExpr → MatrixExpr
+  | hadamard     : MatrixExpr → MatrixExpr → MatrixExpr
+  | pointwise_scalar : BabyBear .canonical → MatrixExpr → MatrixExpr
   deriving Repr, BEq, Inhabited, DecidableEq
 
 /-- Number of AST nodes. -/
@@ -37,10 +38,12 @@ def MatrixExpr.size : MatrixExpr → Nat
   | .transpose a      => 1 + a.size
   | .ntt _ _ a        => 1 + a.size
   | .intt _ _ a       => 1 + a.size
+  | .hadamard a b     => 1 + a.size + b.size
+  | .pointwise_scalar _ a => 1 + a.size
 
 /-- Derive the output shape of a matrix expression, returning `none` on any
     shape mismatch (malformed constant, matmul k-dim disagreement, NTT
-    applied to a non-`1 × n` shape). -/
+    applied to a non-`1 × n` shape, hadamard of unequal shapes). -/
 def MatrixExpr.shape : MatrixExpr → Option MatrixShape
   | .const_matrix (m, n) entries =>
       if entries.length = m * n then some (m, n) else none
@@ -56,6 +59,11 @@ def MatrixExpr.shape : MatrixExpr → Option MatrixShape
   | .intt n _ a     => do
       let (rows, cols) ← a.shape
       if rows = 1 ∧ cols = n then some (1, n) else none
+  | .hadamard a b   => do
+      let sa ← a.shape
+      let sb ← b.shape
+      if sa = sb then some sa else none
+  | .pointwise_scalar _ a => a.shape
 
 /-- Smart constructor for the forward NTT primitive. Returns `none` if `n`
     is not a valid BabyBear NTT size (power of two, `n ∣ p − 1`) or if `x`

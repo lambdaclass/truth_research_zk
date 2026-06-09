@@ -6,4 +6,5 @@ import Tests.MatrixExpr
 import Tests.MatrixPipeline
 import Tests.MatrixLower
 import Tests.MatrixLowerLoop
+import Tests.MatrixCostOracle
 import Tests.MatrixNtt

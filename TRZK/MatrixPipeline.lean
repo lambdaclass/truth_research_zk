@@ -1,4 +1,5 @@
 import TRZK.MatrixOp
+import TRZK.MatrixCostOracle
 
 open LambdaSat
 
@@ -57,18 +58,47 @@ partial def embedMatrix (g : EGraph MatrixOp) :
   | .intt n ω a        =>
     let (ia, g1) := embedMatrix g a
     g1.add ⟨.intt n ω ia⟩
+  | .hadamard a b      =>
+    let (ia, g1) := embedMatrix g a
+    let (ib, g2) := embedMatrix g1 b
+    g2.add ⟨.hadamard ia ib⟩
+  | .pointwise_scalar s a =>
+    let (ia, g1) := embedMatrix g a
+    g1.add ⟨.pointwise_scalar s ia⟩
 
 namespace MatrixPipeline
 
-/-- End-to-end matrix optimization: embed → saturate → extract.
+/-- Oracle-cache observability for one `optimize` run: hit/miss counters and
+    the cache's end-of-run entry count. `hitRatePercent` is the integer
+    percentage CI asserts on. -/
+structure OracleStats where
+  hits      : Nat
+  misses    : Nat
+  cacheSize : Nat
+  deriving Repr, BEq, Inhabited
 
-    Flat per-op cost from `NodeOps.localCost` is a placeholder; the
-    field-egraph cost oracle replaces it in a later sub-change. -/
-def optimize (rules : MatrixRuleSet) (expr : MatrixExpr) : Option MatrixExpr :=
+/-- Integer cache hit rate in percent (0 when no queries ran). -/
+def OracleStats.hitRatePercent (s : OracleStats) : Nat :=
+  if s.hits + s.misses = 0 then 0 else s.hits * 100 / (s.hits + s.misses)
+
+/-- End-to-end matrix optimization: embed → saturate → price every node
+    through the cached field-egraph cost oracle → extract. Nodes the oracle
+    cannot price (unresolvable child shapes) fall back to the flat
+    `MatrixOp.localCost`. Also returns the oracle's cache statistics. -/
+def optimizeWithStats (rules : MatrixRuleSet) (expr : MatrixExpr)
+    (cache : OracleCache := {}) : Option MatrixExpr × OracleStats :=
   let (rootId, g0) := embedMatrix .empty expr
   let g_sat  := saturateF (fuel := 50) (maxIter := 10) (rebuildFuel := 50) g0 rules
-  let g_cost := computeCostsF g_sat (fun n => NodeOps.localCost n.op) 50
-  extractAuto g_cost rootId
+  let (costs, cache') := oracleNodeCosts g_sat cache
+  let g_cost := computeCostsF g_sat
+    (fun n => costs.getD n.op (NodeOps.localCost n.op)) 50
+  (extractAuto g_cost rootId,
+   { hits := cache'.hits, misses := cache'.misses,
+     cacheSize := cache'.entries.size })
+
+/-- `optimizeWithStats` without the cache statistics. -/
+def optimize (rules : MatrixRuleSet) (expr : MatrixExpr) : Option MatrixExpr :=
+  (optimizeWithStats rules expr).1
 
 end MatrixPipeline
 

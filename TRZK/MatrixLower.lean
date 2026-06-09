@@ -123,6 +123,20 @@ partial def materializeAux : MatrixExpr → LowerState →
       guard (ga[0]!.size = n)
       let row := (List.range n).toArray.map fun k => inttCell n ω ga k
       some (#[row], st1)
+  | .hadamard a b, st => do
+      let (ga, st1) ← materializeAux a st
+      let (gb, st2) ← materializeAux b st1
+      guard (ga.size = gb.size)
+      guard (ga.size = 0 ∨ ga[0]!.size = gb[0]!.size)
+      let rows := (List.range ga.size).toArray.map fun r =>
+        (List.range ga[0]!.size).toArray.map fun c =>
+          .mul ga[r]![c]! gb[r]![c]!
+      some (rows, st2)
+  | .pointwise_scalar s a, st => do
+      let (ga, st1) ← materializeAux a st
+      -- Constant on the right: `mul_one_right` / `mul_zero_right` match there.
+      let rows := ga.map fun row => row.map fun cell => .mul cell (.const s)
+      some (rows, st1)
 
 /-- Materialize a matrix expression into its dense grid of scalar
     expressions. Returns `none` for shape-inconsistent inputs. -/

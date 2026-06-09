@@ -93,6 +93,8 @@ private partial def seedVars : MatrixExpr → Std.HashMap Nat Nat × Nat →
   | .transpose a, acc      => seedVars a acc
   | .ntt _ _ a, acc        => seedVars a acc
   | .intt _ _ a, acc       => seedVars a acc
+  | .hadamard a b, acc     => seedVars b (seedVars a acc)
+  | .pointwise_scalar _ a, acc => seedVars a acc
 
 /-- Row-major flat index `r·cols + c` as an affine `IdxExpr` over loop vars
     `vr` (row) and `vc` (col), offset by region `base`:
@@ -156,6 +158,29 @@ private partial def lowerAux (e : MatrixExpr) (st : LoopState) :
       lowerTransform a st nn (twiddleTable nn ω)
   | .intt nn ω a =>
       lowerTransform a st nn (inttTwiddleTable nn ω)
+  | .hadamard a b => do
+      let (baseA, bodyA, st1) ← lowerAux a st
+      let (baseB, bodyB, st2) ← lowerAux b st1
+      let (base, st3) := st2.allocRegion (m * n)
+      let (vi, st4) := st3.freshVar     -- flat cell index in [0, m·n)
+      -- Both operands and the result are contiguous row-major regions of the
+      -- same size, so one flat loop covers all cells.
+      let cell : LoopExpr :=
+        .compute (.mul (.var 0) (.var 1))
+          [(.mem, .affine baseA 1 vi), (.mem, .affine baseB 1 vi)]
+          (.affine base 1 vi) false
+      let nest : LoopExpr := .for' vi 0 (m * n) 1 cell
+      some (base, seqNop (seqNop bodyA bodyB) nest, st4)
+  | .pointwise_scalar s a => do
+      let (baseA, bodyA, st1) ← lowerAux a st
+      let (base, st2) := st1.allocRegion (m * n)
+      let (vi, st3) := st2.freshVar     -- flat cell index in [0, m·n)
+      let cell : LoopExpr :=
+        .compute (.mul (.var 0) (.const s))
+          [(.mem, .affine baseA 1 vi)]
+          (.affine base 1 vi) false
+      let nest : LoopExpr := .for' vi 0 (m * n) 1 cell
+      some (base, seqNop bodyA nest, st3)
 where
   /-- Sequence two bodies, dropping `nop` operands so leaf inputs don't litter
       the tree with empty statements. -/

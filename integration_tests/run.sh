@@ -16,6 +16,7 @@ set -euo pipefail
 OPS=(
     arith_add0 arith_mul arith_mul_chain arith_mul0 arith_sub arith_neg arith_add_neg
     matrix_matmul matrix_matmul_const matrix_transpose_matmul matrix_ntt
+    matrix_hadamard matrix_pointwise
 )
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -102,6 +103,8 @@ case "$OP" in
     matrix_matmul_const) ARITY=4 ;;
     matrix_transpose_matmul) ARITY=8 ;;
     matrix_ntt) ARITY=8 ;;
+    matrix_hadamard) ARITY=8 ;;
+    matrix_pointwise) ARITY=4 ;;
     *) echo "Internal error: no arity registered for op '$OP'" >&2; exit 2 ;;
 esac
 

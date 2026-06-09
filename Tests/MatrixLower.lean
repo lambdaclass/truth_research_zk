@@ -109,3 +109,24 @@ private def envOf (xs : List Nat) : Nat → Nat
 
 -- Shape-mismatched matmul lowers to none.
 #guard ((MatrixExpr.matmul (.var_matrix 0 (2, 3)) (.var_matrix 1 (4, 5))).lower 0 0).isNone
+
+/-! Hadamard: cell (r, c) = A[r][c] · B[r][c]. -/
+
+-- A = [[1,2],[3,4]], B = [[5,6],[7,8]]; (A ⊙ B)[1][0] = 3*7 = 21.
+#guard
+  match (MatrixExpr.hadamard (.var_matrix 0 (2, 2)) (.var_matrix 1 (2, 2))).lower 1 0 with
+  | some (e, arity) =>
+      arity == 8 && TestEval.eval (envOf [1, 2, 3, 4, 5, 6, 7, 8]) e == 21
+  | _ => false
+
+-- Shape-mismatched hadamard lowers to none.
+#guard ((MatrixExpr.hadamard (.var_matrix 0 (2, 3)) (.var_matrix 1 (3, 2))).lower 0 0).isNone
+
+/-! Pointwise scalar: cell (r, c) = A[r][c] · s, constant on the right. -/
+
+-- (3 · A)[0][1] with A = [[1,2],[3,4]] is 2*3 = 6.
+#guard
+  match (MatrixExpr.pointwise_scalar 3 (.var_matrix 0 (2, 2))).lower 0 1 with
+  | some (.mul (.var i) (.const s), arity) =>
+      i == 1 && s.toNat == 3 && arity == 4
+  | _ => false

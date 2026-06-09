@@ -62,6 +62,13 @@ def reference(op: str, xs: list[int]):
     if op == "matrix_ntt":
         assert len(xs) == 8
         return xs, ntt(xs, 8)
+    if op == "matrix_hadamard":
+        assert len(xs) == 8
+        return xs, [(a * b) % P for a, b in zip(xs[:4], xs[4:])]
+    if op == "matrix_pointwise":
+        # 3 · A; the scalar matches matrix_spec_pointwise.lean.
+        assert len(xs) == 4
+        return xs, [(3 * a) % P for a in xs]
     raise ValueError(f"unknown op: {op}")
 
 
@@ -70,6 +77,8 @@ ARITY = {
     "matrix_matmul_const": 4,
     "matrix_transpose_matmul": 8,
     "matrix_ntt": 8,
+    "matrix_hadamard": 8,
+    "matrix_pointwise": 4,
 }
 
 
