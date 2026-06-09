@@ -130,7 +130,7 @@ private partial def lowerAux (e : MatrixExpr) (st : LoopState) :
       let readIdx  := rowMajorIdx baseA na vc vr
       let cell : LoopExpr :=
         .compute (.var 0) [(.mem, readIdx)] writeIdx false
-      let nest : LoopExpr := .for' vr 0 na (.for' vc 0 ma cell)
+      let nest : LoopExpr := .for' vr 0 na 1 (.for' vc 0 ma 1 cell)
       some (base, seqNop bodyA nest, st4)
   | .matmul a b => do
       let (baseA, bodyA, st1) ← lowerAux a st
@@ -149,8 +149,8 @@ private partial def lowerAux (e : MatrixExpr) (st : LoopState) :
       let bIdx := rowMajorIdx baseB nb vi vc
       let mac : LoopExpr :=
         .compute (.mul (.var 0) (.var 1)) [(.mem, aIdx), (.mem, bIdx)] outIdx true
-      let inner : LoopExpr := .seq zero (.for' vi 0 k mac)
-      let nest : LoopExpr := .for' vr 0 ma (.for' vc 0 nb inner)
+      let inner : LoopExpr := .seq zero (.for' vi 0 k 1 mac)
+      let nest : LoopExpr := .for' vr 0 ma 1 (.for' vc 0 nb 1 inner)
       some (base, seqNop (seqNop bodyA bodyB) nest, st6)
   | .ntt nn ω a =>
       lowerTransform a st nn (twiddleTable nn ω)
@@ -180,8 +180,8 @@ where
     let mac : LoopExpr :=
       .compute (.mul (.var 0) (.var 1))
         [(.mem, xIdx), (.table table.name, twIdx)] outIdx true
-    let inner : LoopExpr := .seq zero (.for' vj 0 nn mac)
-    let nest : LoopExpr := .for' vk 0 nn inner
+    let inner : LoopExpr := .seq zero (.for' vj 0 nn 1 mac)
+    let nest : LoopExpr := .for' vk 0 nn 1 inner
     some (base, seqNop bodyA nest, st5)
 
 /-- Lower a matrix expression to a loop-shaped `LoopProgram` over flat `mem`.

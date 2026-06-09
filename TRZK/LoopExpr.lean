@@ -58,7 +58,7 @@ inductive BufRef where
     product and the runtime twiddle lookup expressible with affine indices
     only (design D4). -/
 inductive LoopExpr where
-  | for'    : (idx : Nat) → (lo hi : Nat) → (body : LoopExpr) → LoopExpr
+  | for'    : (idx : Nat) → (lo hi step : Nat) → (body : LoopExpr) → LoopExpr
   | seq     : LoopExpr → LoopExpr → LoopExpr
   | compute : (kernel : ArithExpr) → (gathers : List (BufRef × IdxExpr)) →
               (scatter : IdxExpr) → (accumulate : Bool) → LoopExpr
@@ -69,7 +69,7 @@ inductive LoopExpr where
 /-- Number of IR nodes (structural; the embedded kernel `ArithExpr` counts as
     one regardless of its own size). -/
 def LoopExpr.size : LoopExpr → Nat
-  | .for' _ _ _ body    => 1 + body.size
+  | .for' _ _ _ _ body  => 1 + body.size
   | .seq a b            => 1 + a.size + b.size
   | .compute _ _ _ _    => 1
   | .temp _ body        => 1 + body.size
@@ -78,11 +78,11 @@ def LoopExpr.size : LoopExpr → Nat
 /-- Set of loop-variable indices bound by `for'` nodes anywhere in the tree.
     Used by tests to confirm a lowering introduced the loop nest it should. -/
 def LoopExpr.usedVars : LoopExpr → List Nat
-  | .for' idx _ _ body  => idx :: body.usedVars
-  | .seq a b            => a.usedVars ++ b.usedVars
-  | .compute _ _ _ _    => []
-  | .temp _ body        => body.usedVars
-  | .nop                => []
+  | .for' idx _ _ _ body => idx :: body.usedVars
+  | .seq a b             => a.usedVars ++ b.usedVars
+  | .compute _ _ _ _     => []
+  | .temp _ body         => body.usedVars
+  | .nop                 => []
 
 /-- Everything the emitter needs to realize a lowered matrix expression as a
     self-contained Rust function over a flat `mem` array. The lowering

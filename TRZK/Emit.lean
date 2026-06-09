@@ -211,16 +211,19 @@ def emitKernel (gathers : List (BufRef × IdxExpr)) : ArithExpr → String
   | .fromMont a  => s!"bb_from_mont({emitKernel gathers a})"
 
 /-- Tree-walk emitter over `LoopExpr` (umbrella D1), one arm per constructor:
-    - `for'` → a Rust `for i{idx} in {lo}..{hi} { … }` block;
+    - `for'` → a Rust `for i{idx} in {lo}..{hi} { … }` block, with
+      `.step_by({step})` when `step ≠ 1` (the unit-stride case stays a bare
+      range so the common output is unchanged);
     - `seq`  → the two bodies in order;
     - `compute` → `mem[scatter] {= | +=} kernel;` (accumulate selects `+=`);
     - `temp` → a `let mut mem` scratch-buffer declaration scoping the body;
     - `nop`  → nothing.
-    `indent` is the current leading whitespace; nested blocks add two spaces. -/
+    `indent` is the current leading whitespace; nested blocks add four spaces. -/
 partial def emitLoop (indent : String) : LoopExpr → String
-  | .for' idx lo hi body =>
+  | .for' idx lo hi step body =>
     let inner := emitLoop (indent ++ "    ") body
-    s!"{indent}for i{idx} in {lo}..{hi} \{\n{inner}\n{indent}}"
+    let range := if step == 1 then s!"{lo}..{hi}" else s!"({lo}..{hi}).step_by({step})"
+    s!"{indent}for i{idx} in {range} \{\n{inner}\n{indent}}"
   | .seq a b =>
     s!"{emitLoop indent a}\n{emitLoop indent b}"
   | .compute kernel gathers scatter accumulate =>
@@ -246,26 +249,23 @@ def emitLoopProgram (funcName : String) (prog : LoopProgram) : String :=
   let tables := prog.tables.map emitConstTable
   let params := String.intercalate ", "
     ((List.range prog.arity).map fun i => s!"x{i}: u32")
-  let seeds := String.intercalate "\n"
-    ((List.range prog.arity).map fun i => s!"    mem[{i}] = x{i};")
-  -- `prog.body` is `temp memSize (…)`; emit its scratch decl + nest, then read
-  -- the result region out. The `mem` seeding happens inside the temp scope, so
-  -- splice the seeds in right after the buffer declaration.
-  let bodyStr := match prog.body with
-    | .temp size inner =>
-      let nest := emitLoop "        " inner
-      let copy := s!"        let mut out: [u32; {prog.outSize}] = [0u32; {prog.outSize}];\n" ++
-                  s!"        for k in 0..{prog.outSize} \{ out[k] = mem[{prog.outBase} + k]; }\n" ++
-                  s!"        out"
-      s!"    \{\n" ++
-      s!"        let mut mem: [u32; {size}] = [0u32; {size}];\n" ++
-      (if prog.arity > 0 then s!"{seeds}\n" else "") ++
-      s!"{nest}\n{copy}\n    }"
-    | other =>
-      -- Defensive: a lowering that didn't wrap in `temp`. Emit a buffer sized
-      -- to the result and run the nest directly.
-      let nest := emitLoop "    " other
-      s!"    let mut mem: [u32; {prog.memSize}] = [0u32; {prog.memSize}];\n{nest}"
+  -- The function body is itself the scratch-buffer scope, so the top-level
+  -- `temp` adds no extra brace block — its size sizes `mem`, its inner nest is
+  -- emitted at the body indent. Everything (buffer decl, input seeds, loop
+  -- nest, result copy-out) sits at one 4-space level. `other` is the defensive
+  -- path for a lowering that skipped the `temp` wrapper.
+  let ind := "    "
+  let memSize := match prog.body with | .temp size _ => size | _ => prog.memSize
+  let inner := match prog.body with | .temp _ b => b | b => b
+  let seeds := (List.range prog.arity).map fun i => s!"{ind}mem[{i}] = x{i};"
+  let lines : List String :=
+    [s!"{ind}let mut mem: [u32; {memSize}] = [0u32; {memSize}];"] ++
+    seeds ++
+    [emitLoop ind inner,
+     s!"{ind}let mut out: [u32; {prog.outSize}] = [0u32; {prog.outSize}];",
+     s!"{ind}for k in 0..{prog.outSize} \{ out[k] = mem[{prog.outBase} + k]; }",
+     s!"{ind}out"]
+  let bodyStr := String.intercalate "\n" lines
   let entry :=
     s!"pub fn {funcName}({params}) -> [u32; {prog.outSize}] \{\n{bodyStr}\n}"
   String.intercalate "\n" (emitHelpers :: tables ++ [entry])

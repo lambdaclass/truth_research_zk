@@ -25,8 +25,8 @@ private def matmulCell : LoopExpr :=
 
 -- A 3-deep nest with a seq inside: size counts structural nodes (compute = 1).
 private def nest : LoopExpr :=
-  .for' 0 0 2 (.for' 1 0 2 (.seq (.compute (.const 0) [] (.var 0) false)
-                                 (.for' 2 0 2 matmulCell)))
+  .for' 0 0 2 1 (.for' 1 0 2 1 (.seq (.compute (.const 0) [] (.var 0) false)
+                                     (.for' 2 0 2 1 matmulCell)))
 
 #guard nest.size == 6        -- for, for, seq, compute, for, compute
 #guard nest.usedVars == [0, 1, 2]
@@ -76,9 +76,15 @@ private def nest : LoopExpr :=
 #guard emitLoop "" matmulCell ==
   "mem[i2] = bb_add(mem[i2], bb_mul(mem[i0], mem[i1]));"
 
--- `for'` wraps the body in a Rust range loop (task 3.2).
-#guard emitLoop "" (.for' 0 0 4 (.compute (.const 1) [] (.var 0) false)) ==
+-- `for'` wraps the body in a Rust range loop (task 3.2); unit stride stays a
+-- bare range.
+#guard emitLoop "" (.for' 0 0 4 1 (.compute (.const 1) [] (.var 0) false)) ==
   "for i0 in 0..4 {\n    mem[i0] = 1u32;\n}"
+
+-- A non-unit stride emits `.step_by`, leaving the index expression free of a
+-- synthetic multiply (the unroller advances the counter, not the address).
+#guard emitLoop "" (.for' 0 0 8 4 (.compute (.const 1) [] (.var 0) false)) ==
+  "for i0 in (0..8).step_by(4) {\n    mem[i0] = 1u32;\n}"
 
 -- `seq` emits both bodies in order (task 3.3).
 #guard emitLoop "" (.seq (.compute (.const 1) [] (.const 0) false)
