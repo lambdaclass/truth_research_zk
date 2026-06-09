@@ -1,0 +1,11 @@
+[package]
+name = "p3_oracle"
+version = "0.1.0"
+edition = "2024"
+
+# Exact pins + committed Cargo.lock: oracle upgrades are deliberate commits,
+# never a side effect of an unrelated build.
+[dependencies]
+p3-baby-bear = "=0.5.3"
+p3-dft = "=0.5.3"
+p3-field = "=0.5.3"
