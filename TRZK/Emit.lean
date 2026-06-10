@@ -1,4 +1,5 @@
 import TRZK.ArithExpr
+import TRZK.Program
 
 namespace TRZK
 
@@ -111,33 +112,59 @@ def emitExpr : ArithExpr → String
   | .toMont a    => s!"bb_to_mont({emitExpr a})"
   | .fromMont a  => s!"bb_from_mont({emitExpr a})"
 
-/-- Emit a full Rust function with a fixed positional arity: parameters are
-    `x0..x(arity-1)` regardless of which survive optimization. Params not
-    referenced by `e` get a leading `_` to silence Rust's unused-arg lint.
-    Callers should pass the *pre-optimization* arity so the signature stays
-    stable when rules eliminate variable references.
+/-- Render a `ScalarType` as its Rust type name. -/
+def emitScalarType : ScalarType → String
+  | .u32 => "u32"
 
-    The helper block (Montgomery and canonical helpers, modulus constant) is
-    prepended so the generated file is self-contained. -/
-def emitFunction (name : String) (arity : Nat) (e : ArithExpr) : String :=
-  let used := e.usedVars arity
+/-- Render a `RetTy` as its Rust return-type syntax. -/
+def emitRetTy : RetTy → String
+  | .scalar ty   => emitScalarType ty
+  | .array ty n  => s!"[{emitScalarType ty}; {n}]"
+
+/-- Emit a `ConstTable` as a top-level Rust `const NAME: [TY; N] = [...];`.
+    Each value is rendered as a typed literal per `elemTy`. -/
+def emitConstTable (t : ConstTable) : String :=
+  let ty := emitScalarType t.elemTy
+  let elems := String.intercalate ", " (t.values.toList.map fun v => s!"{v}{ty}")
+  s!"const {t.name}: [{ty}; {t.values.size}] = [{elems}];"
+
+/-- The set of body expressions a `FunctionBody` walks: a singleton for
+    `.scalar`, one per cell for `.cells`. -/
+def FunctionBody.exprs : FunctionBody → List ArithExpr
+  | .scalar e  => [e]
+  | .cells cs  => cs
+
+/-- Emit a Rust function. Parameters are positional `x0..x(arity-1)` where
+    `arity = f.params.length`; params not referenced by any body expression get
+    a leading `_` to silence Rust's unused-arg lint. The signature stays stable
+    even when optimization eliminates variable references because the arity is
+    fixed by `params`. `isPub` controls the `pub` qualifier (entry vs. helper).
+
+    `.scalar` bodies emit the expression directly; `.cells` bodies emit an
+    array literal `[e0, e1, ...]`. -/
+def emitFunction (isPub : Bool) (f : Function) : String :=
+  let arity := f.params.length
+  let exprs := f.body.exprs
+  let used := exprs.foldl (fun acc e => (e.usedVars arity).zipWith (· || ·) acc)
+                          (Array.replicate arity false)
   let params := (List.range arity).map fun i =>
-    if used.getD i false then s!"x{i}: u32" else s!"_x{i}: u32"
+    let (nm, ty) := f.params[i]!
+    let pfx := if used.getD i false then "" else "_"
+    s!"{pfx}{nm}: {emitScalarType ty}"
   let args := String.intercalate ", " params
-  let body := emitExpr e
-  s!"{emitHelpers}\npub fn {name}({args}) -> u32 \{ {body} }"
+  let body := match f.body with
+    | .scalar e => emitExpr e
+    | .cells cs => s!"[{String.intercalate ", " (cs.map emitExpr)}]"
+  let qual := if isPub then "pub " else ""
+  s!"{qual}fn {f.name}({args}) -> {emitRetTy f.retTy} \{ {body} }"
 
-/-- Emit a Rust function returning all `m * n` output cells as `[u32; N]`.
-    Each element of `cells` is `(optimized_expr, pre_optimization_arity)`;
-    all cells must share the same arity (they come from the same matrix). -/
-def emitMatrixFunction (name : String) (arity : Nat) (cells : List ArithExpr) : String :=
-  let allUsed := cells.foldl (fun acc e => (e.usedVars arity).zipWith (· || ·) acc)
-                              (Array.replicate arity false)
-  let params := (List.range arity).map fun i =>
-    if allUsed.getD i false then s!"x{i}: u32" else s!"_x{i}: u32"
-  let args    := String.intercalate ", " params
-  let n       := cells.length
-  let elems   := String.intercalate ", " (cells.map emitExpr)
-  s!"{emitHelpers}\npub fn {name}({args}) -> [u32; {n}] \{ [{elems}] }"
+/-- Emit a full Rust file from a `Program`: the self-contained helper block,
+    then each `ConstTable` as a top-level `const`, then private helper
+    functions, then the public entry-point function. -/
+def emitProgram (p : Program) : String :=
+  let tables := p.tables.map emitConstTable
+  let helpers := p.functions.map (emitFunction false ·)
+  let entry := emitFunction true p.entry
+  String.intercalate "\n" (emitHelpers :: tables ++ helpers ++ [entry])
 
 end TRZK

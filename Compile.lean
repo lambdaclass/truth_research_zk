@@ -69,7 +69,13 @@ def main : IO Unit := do
     IO.Process.exit 1
   | some post =>
     IO.FS.writeFile \"{artifactsDir}/{baseName}.post.txt\" (toString (repr post))
-    let code := emitFunction \"{funcName}\" arity post
+    let params := (List.range arity).map fun i => (s!\"x\{i}\", ScalarType.u32)
+    let prog : Program := \{
+      tables := [], functions := [],
+      entry := \{ name := \"{funcName}\", params, retTy := .scalar .u32,
+                  body := .scalar post }
+    }
+    let code := emitProgram prog
     IO.FS.writeFile \"{outputPath}\" code
 "
 
@@ -114,7 +120,13 @@ def main : IO Unit := do
             IO.Process.exit 1
           | some post =>
             cells := cells ++ [post]
-      let code := emitMatrixFunction \"{funcName}\" arity cells
+      let params := (List.range arity).map fun i => (s!\"x\{i}\", ScalarType.u32)
+      let prog : Program := \{
+        tables := [], functions := [],
+        entry := \{ name := \"{funcName}\", params,
+                    retTy := .array .u32 cells.length, body := .cells cells }
+      }
+      let code := emitProgram prog
       IO.FS.writeFile \"{outputPath}\" code
 "
 
