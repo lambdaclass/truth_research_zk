@@ -51,8 +51,73 @@ jobs:
       - name: Fetch Mathlib cache (no-op if Mathlib is not a dep)
         run: lake exe cache get || true
 
+      # NTT-family ops verify against the Plonky3 oracle; run.sh cargo-builds
+      # it (locked), so cache the cargo registry and target dir.
+      - name: Cache p3_oracle build
+        if: matrix.op == 'matrix_ntt'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            integration_tests/p3_oracle/target
+          key: ${{ runner.os }}-p3-oracle-${{ hashFiles('integration_tests/p3_oracle/Cargo.lock') }}
+
       - name: Crafted vectors
         run: bash integration_tests/run.sh --op ${{ matrix.op }}
 
       - name: Fuzz (100k)
         run: bash integration_tests/run.sh --op ${{ matrix.op }} --fuzz -n 100000
+
+  differential-oracle:
+    name: differential oracle (cross-check + mutation)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install elan
+        run: |
+          curl https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -sSf | sh -s -- -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> $GITHUB_PATH
+
+      - name: Cache Lake build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.elan
+            .lake
+          key: ${{ runner.os }}-lake-${{ hashFiles('lean-toolchain', 'lakefile.toml', 'lake-manifest.json') }}
+          restore-keys: |
+            ${{ runner.os }}-lake-
+
+      - name: Fetch Mathlib cache (no-op if Mathlib is not a dep)
+        run: lake exe cache get || true
+
+      - name: Cache p3_oracle build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            integration_tests/p3_oracle/target
+          key: ${{ runner.os }}-p3-oracle-${{ hashFiles('integration_tests/p3_oracle/Cargo.lock') }}
+
+      - name: Build p3_oracle (locked)
+        run: |
+          cargo build --release --locked \
+            --manifest-path integration_tests/p3_oracle/Cargo.toml \
+            --target-dir integration_tests/p3_oracle/target
+
+      - name: Cross-check Python reference vs Plonky3 (all sizes)
+        run: |
+          python3 integration_tests/cross_check_ntt.py \
+            --oracle integration_tests/p3_oracle/target/release/p3_oracle
+
+      # Control and mutation run in the same job: the control proves the
+      # pipeline passes on an uncorrupted kernel, the mutation check proves
+      # the same pipeline fails on a kernel with two output indices swapped.
+      - name: Control (uncorrupted kernel passes)
+        run: bash integration_tests/run.sh --op matrix_ntt
+
+      - name: Mutation check (corrupted kernel must fail verification)
+        run: bash integration_tests/run.sh --op matrix_ntt --mutate
